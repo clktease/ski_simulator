@@ -26,7 +26,10 @@ export class LiftRide {
   /** Remaining distance to the top, in metres. */
   get remaining() {
     if (!this.lift) return 0;
-    return Math.max(0, this.lift.upLength - this.lift.chairDistance(this.chair));
+    const d = this.lift.chairDistance(this.chair);
+    // the boarded chair may still be rounding the bottom bullwheel (end of the down side)
+    if (d > this.lift.upLength + 20) return this.lift.upLength + (this.lift.length - d);
+    return Math.max(0, this.lift.upLength - d);
   }
 
   /** Returns true when the chair arrived at the top. */

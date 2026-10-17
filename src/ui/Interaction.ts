@@ -11,7 +11,7 @@ export class InteractionUI {
 
   constructor(
     private readonly input: Input,
-    private readonly points: WorldInteraction[],
+    readonly points: WorldInteraction[],
     private readonly activate: (p: WorldInteraction) => void,
   ) {}
 

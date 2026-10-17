@@ -6,10 +6,12 @@ import type { Collider } from '../resort/Buildings';
 import type { PlayerBody } from './PlayerBody';
 import { resolveColliders } from './collide';
 
-const WALK_SPEED = 1.5;
-const RUN_SPEED = 4;
+const WALK_SPEED = 2.4;
+const RUN_SPEED = 5.5;
+/** hold Space: quick travel around the base area (game convenience, not realistic) */
+const DASH_SPEED = 12;
 /** ski boots make walking clumsy */
-const BOOT_FACTOR = 0.7;
+const BOOT_FACTOR = 0.85;
 
 /** Third-person walking around the base area. */
 export class WalkController {
@@ -27,8 +29,10 @@ export class WalkController {
     const fwd = (k.isDown('KeyW') ? 1 : 0) - (k.isDown('KeyS') ? 1 : 0);
     const strafe = (k.isDown('KeyD') ? 1 : 0) - (k.isDown('KeyA') ? 1 : 0);
     const run = k.isDown('ShiftLeft') || k.isDown('ShiftRight');
-    const target = fwd || strafe ? (run ? RUN_SPEED : WALK_SPEED) * (this.inBoots ? BOOT_FACTOR : 1) : 0;
-    this.speed = THREE.MathUtils.damp(this.speed, target, 8, dt);
+    const dash = k.isDown('Space');
+    const base = dash ? DASH_SPEED : run ? RUN_SPEED : WALK_SPEED;
+    const target = fwd || strafe ? base * (this.inBoots && !dash ? BOOT_FACTOR : 1) : 0;
+    this.speed = THREE.MathUtils.damp(this.speed, target, dash ? 4 : 8, dt);
 
     if (fwd || strafe) {
       // move relative to where the camera looks

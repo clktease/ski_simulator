@@ -71,6 +71,30 @@ await shot('01-start');
 let s = await state();
 check(s.mode === 'walk' && s.ticket === null, `starts walking at the parking lot (mode=${s.mode})`);
 
+// route guidance points at the first objective
+const guideText = await page.$eval('#guide', (e) => (e.hidden ? '' : e.textContent));
+check(guideText.includes('售票處'), `guidance shows the way to the ticket office ("${guideText.trim()}")`);
+const chevrons = await page.evaluate(() => {
+  const m = window.game.guide.chevrons;
+  let n = 0;
+  const e = m.instanceMatrix.array;
+  for (let i = 0; i < m.count; i++) if (e[i * 16] !== 0) n++;
+  return n;
+});
+check(chevrons > 5, `walking trail drawn on the ground (${chevrons} chevrons)`);
+await press('KeyG');
+check(await page.$eval('#guide', (e) => e.hidden), 'G hides the guidance');
+await press('KeyG');
+
+// faster walking: Space dash
+await page.keyboard.down('KeyW');
+await page.keyboard.down('Space');
+await frames(25);
+const dashSpeed = await page.evaluate(() => window.game.walk.speed);
+await page.keyboard.up('Space');
+await page.keyboard.up('KeyW');
+check(dashSpeed > 8, `Space dash speed ${dashSpeed.toFixed(1)} m/s`);
+
 // lift is refused without ticket/gear
 await page.evaluate(() => {
   const g = window.game;

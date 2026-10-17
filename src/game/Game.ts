@@ -22,7 +22,7 @@ import { SkiController } from '../player/SkiController';
 import { LiftRide } from '../player/LiftRide';
 import { NpcSkiers } from '../npc/NpcSkiers';
 import { SkiAudio } from '../audio/SkiAudio';
-import { GameState, LIFTS_CLOSE_DAY, LIFTS_CLOSE_NIGHT, LIFTS_OPEN } from '../flow/GameState';
+import { DINNER_FROM, GameState, LIFTS_CLOSE_DAY, LIFTS_CLOSE_NIGHT, LIFTS_OPEN } from '../flow/GameState';
 import { objectives, showSummary } from '../flow/DayFlow';
 import { openService, type ServiceContext } from '../flow/Services';
 import { Hud } from '../ui/Hud';
@@ -30,14 +30,17 @@ import { SkiHud } from '../ui/SkiHud';
 import { Panel, h } from '../ui/Panel';
 import { InteractionUI } from '../ui/Interaction';
 import { switchQuality, type QualityLevel } from '../core/Quality';
+import { Guidance, type GuideTarget } from '../ui/Guidance';
+import { Minimap } from '../ui/Minimap';
+import { WalkGraph } from '../resort/WalkGraph';
 
 export type Mode = 'walk' | 'ski' | 'lift' | 'fly';
 
 const HELP: Record<Mode, string> = {
-  walk: '點擊畫面鎖定滑鼠 · WASD 走路 · Shift 跑步 · E 互動 · Q 穿上雪板 · O 設定 · F 飛行',
-  ski: 'A/D 轉彎 · W 蹲低滑降/推進 · S 煞車 · V 第一人稱 · E 搭纜車 · Q 脫下雪板 · O 設定',
+  walk: '點擊畫面鎖定滑鼠 · WASD 走路 · Shift 跑步 · Space 快速移動 · E 互動 · Q 穿上雪板 · G 路線引導 · O 設定',
+  ski: 'A/D 轉彎 · W 蹲低滑降/推進 · S 煞車 · V 第一人稱 · E 搭纜車 · Q 脫下雪板 · G 路線引導 · O 設定',
   lift: '按住 Space 快轉 · 滑鼠環視風景 · V 第一人稱',
-  fly: '飛行模式 · WASD 移動 · Space/Shift 升降 · Ctrl 加速 · M 雪道線 · F 回到角色',
+  fly: '飛行模式 · WASD 移動 · Space/Shift 升降 · R 加速 · M 雪道線 · F 回到角色',
 };
 
 /** Lifts that keep running for night skiing (game setting). */
@@ -78,6 +81,11 @@ export class Game {
   private readonly npcs: NpcSkiers;
   private readonly audio = new SkiAudio();
   private readonly services: ServiceContext;
+  private readonly guide: Guidance;
+  private readonly minimap: Minimap;
+  private readonly walkGraph: WalkGraph;
+  private guideRoute: THREE.Vector2[] | null = null;
+  private routeTimer = 0;
 
   private runDrop = 0;
   /** lift the player is (or was last) riding, for unloading at its top */
@@ -133,6 +141,11 @@ export class Game {
     this.npcs = new NpcSkiers(w.hm, w.resort.runs, w.lifts, engine.quality.npcs, (l) => this.liftOpen(l));
     scene.add(this.npcs.group);
 
+    this.guide = new Guidance(w.hm);
+    scene.add(this.guide.group);
+    this.minimap = new Minimap(w.hm, w.resort);
+    this.walkGraph = new WalkGraph(w.resort);
+
     this.state.onChange(() => this.refreshLook());
     this.refreshLook();
   }
@@ -168,6 +181,7 @@ export class Game {
     const s = this.state;
     const c = this.body.character;
     c.setOutfit(s.changed && s.rental ? s.rental.wear ?? OWN_SKI_OUTFIT : STREET_OUTFIT);
+    c.setSkiwear(s.changed);
     this.walk.inBoots = s.changed;
     const geared = (this.mode === 'ski' || this.mode === 'lift') && s.rental;
     c.setGear(geared ? s.rental!.kind : null, s.rental?.lengthCm);
@@ -230,6 +244,8 @@ export class Game {
     if (this.ended) return;
     this.ended = true;
     this.interaction.update(this.body.position, false);
+    this.guide.enabled = false;
+    this.guide.update(0, 0, this.body.position, null, null, 0);
     this.skiHud.visible = false;
     showSummary(this.state);
   }
@@ -307,6 +323,10 @@ export class Game {
     }
     if (k.wasPressed('KeyQ')) this.toggleSkis();
     if (k.wasPressed('KeyO')) this.openSettings();
+    if (k.wasPressed('KeyG')) {
+      this.guide.enabled = !this.guide.enabled;
+      this.hud.toast(this.guide.enabled ? '路線引導：開' : '路線引導：關');
+    }
 
     // --- player ---
     const env = { snowAt: (x: number, z: number) => this.snowAt(x, z), wind: this.weather.wind, stamina: s.stamina };
@@ -359,6 +379,7 @@ export class Game {
     // --- interaction & UI ---
     const canInteract = !this.panel.isOpen && (this.mode === 'walk' || (this.mode === 'ski' && this.ski.speed < 2.5));
     this.interaction.update(this.body.position, canInteract);
+    this.updateGuidance(dt, elapsed);
     this.updateHud(dt);
     this.audio.update(this.mode === 'ski' ? this.ski.speed : 0, this.ski.telemetry.skid, this.weather.current.wind, this.ski.telemetry.snow?.fallRisk === SNOW.ice.fallRisk);
     this.warnings(dt);
@@ -453,6 +474,58 @@ export class Game {
       this.weather.set(next);
       this.hud.toast(`天氣變化：${WEATHER[next].label}`);
     }
+  }
+
+  private point(service: string, facility?: string) {
+    return this.interaction.points.find((p) => p.service === service && (!facility || p.facility?.id === facility));
+  }
+
+  /** Where the current objective wants the player to go. */
+  private guideTarget(): GuideTarget | null {
+    const s = this.state;
+    const at = (service: string, label: string, facility?: string): GuideTarget | null => {
+      const p = this.point(service, facility);
+      return p ? { position: p.position, label } : null;
+    };
+    if (!s.ticket) return at('ticket', '售票處');
+    if (!s.rental) return at('rental', '雪具租借');
+    if (!s.changed && s.stats.liftRides === 0) return at('locker', '更衣室');
+    const central = this.w.lifts.find((l) => NIGHT_LIFT.test(l.data.name ?? ''));
+    if (s.stats.liftRides === 0 && central && this.mode !== 'lift') return { position: central.boardingPoint, label: '中央クワッド 乘車處' };
+    if (!s.dinnerDone && s.minutes >= DINNER_FROM - 30) return at('dinner', 'ホテルアルパイン 晚餐');
+    if (this.mode === 'lift' && this.ridingLift) return { position: this.ridingLift.top, label: '山頂站' };
+    if (!s.lunchDone && s.minutes >= 11 * 60 && s.minutes <= 15 * 60) {
+      const options = this.interaction.points.filter((p) => p.service === 'restaurant');
+      const near = options.sort((a, b) => a.position.distanceTo(this.body.position) - b.position.distanceTo(this.body.position))[0];
+      if (near) return { position: near.position, label: `午餐：${near.facility?.name ?? '餐廳'}` };
+    }
+    // otherwise: the nearest lift that is loading
+    const open = this.w.lifts.filter((l) => this.liftOpen(l));
+    const lift = open.sort((a, b) => a.boardingPoint.distanceTo(this.body.position) - b.boardingPoint.distanceTo(this.body.position))[0];
+    return lift ? { position: lift.boardingPoint, label: `纜車：${lift.data.name ?? '乘車處'}` } : null;
+  }
+
+  private updateGuidance(dt: number, elapsed: number) {
+    const target = this.guideTarget();
+    const p = this.body.position;
+    this.routeTimer -= dt;
+    if (this.routeTimer <= 0 || !target) {
+      this.routeTimer = 0.3;
+      this.guideRoute = target
+        ? this.mode === 'walk'
+          ? this.walkGraph.route(p, target.position)
+          : [new THREE.Vector2(p.x, p.z), new THREE.Vector2(target.position.x, target.position.z)]
+        : null;
+    } else if (this.guideRoute) {
+      // keep the first point glued to the player between re-routes
+      this.guideRoute[0].set(p.x, p.z);
+    }
+    const dir = this.engine.camera.getWorldDirection(new THREE.Vector3());
+    const viewYaw = Math.atan2(dir.x, dir.z);
+    const viewer = this.mode === 'fly' ? this.engine.camera.position : p;
+    // ground chevrons only make sense on foot
+    this.guide.update(dt, elapsed, viewer, target, this.mode === 'walk' ? this.guideRoute : null, viewYaw);
+    this.minimap.update(dt, viewer, this.mode === 'fly' ? viewYaw : this.body.heading, this.guide.enabled ? target?.position ?? null : null, this.guide.enabled ? this.guideRoute : null);
   }
 
   private updateHud(dt: number) {

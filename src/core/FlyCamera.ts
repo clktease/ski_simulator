@@ -28,7 +28,8 @@ export class FlyCamera {
       (k.isDown('Space') ? 1 : 0) - (k.isDown('ShiftLeft') ? 1 : 0),
       (k.isDown('KeyS') ? 1 : 0) - (k.isDown('KeyW') ? 1 : 0),
     );
-    const boost = k.isDown('ControlLeft') ? 5 : 1;
+    // not Ctrl: Ctrl+W closes the browser tab
+    const boost = k.isDown('KeyR') ? 5 : 1;
     move.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.yaw).multiplyScalar(this.speed * boost * dt);
     const p = this.camera.position.add(move);
     p.y = Math.max(p.y, this.minHeight(p.x, p.z) + 1.7);
