@@ -40,7 +40,7 @@ export class SkyLight {
     scene.add(this.sun, this.sun.target);
 
     scene.add(new THREE.HemisphereLight(0xbfd6ff, 0x8a8f99, 0.6));
-    scene.fog = new THREE.FogExp2(0xc9d8e8, 0.00022);
+    scene.fog = new THREE.FogExp2(0xc9d8e8, 0.00012);
 
     // Image-based lighting from the sky itself so snow picks up blue skylight
     const pmrem = new THREE.PMREMGenerator(renderer);

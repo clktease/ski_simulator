@@ -12,7 +12,7 @@ export class PisteMask {
   constructor(
     private readonly hm: Heightmap,
     resort: ResortData,
-    pisteHalfWidth = 32,
+    pisteHalfWidth = 18,
     liftHalfWidth = 10,
   ) {
     this.n = hm.meta.resolution;

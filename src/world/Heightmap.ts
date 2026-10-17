@@ -8,6 +8,7 @@ export interface HeightmapMeta {
   centerLon: number;
   minElevation: number;
   maxElevation: number;
+  outer?: Omit<HeightmapMeta, 'outer'>;
 }
 
 /** Real elevation grid in local metres. +x = east, +z = south, y = elevation above sea level. */
@@ -22,11 +23,32 @@ export class Heightmap {
   }
 
   static async load(baseUrl: string) {
-    const [meta, buf] = await Promise.all([
-      fetch(`${baseUrl}/heightmap.json`).then((r) => r.json() as Promise<HeightmapMeta>),
-      fetch(`${baseUrl}/heightmap.bin`).then((r) => r.arrayBuffer()),
+    const meta: HeightmapMeta = await fetch(`${baseUrl}/heightmap.json`).then((r) => r.json());
+    const bin = (name: string) => fetch(`${baseUrl}/${name}`).then((r) => r.arrayBuffer());
+    const [main, forest, outer] = await Promise.all([
+      bin('heightmap.bin'),
+      bin('forest.bin'),
+      meta.outer ? bin('outer.bin') : Promise.resolve(null),
     ]);
-    return new Heightmap(meta, new Float32Array(buf));
+    const hm = new Heightmap(meta, new Float32Array(main));
+    hm.forest = new Uint8Array(forest);
+    if (meta.outer && outer) hm.outer = new Heightmap(meta.outer, new Float32Array(outer));
+    return hm;
+  }
+
+  /** Forest density per cell (0–255), estimated from aerial photos. */
+  forest: Uint8Array | null = null;
+  /** Low-res surroundings beyond the playable square. */
+  outer: Heightmap | null = null;
+
+  /** Forest density 0–1 at world (x, z) (nearest cell). */
+  forestAt(x: number, z: number) {
+    if (!this.forest) return 0;
+    const n = this.meta.resolution;
+    const i = Math.round((x + this.half) / this.meta.cellM);
+    const j = Math.round((z + this.half) / this.meta.cellM);
+    if (i < 0 || j < 0 || i >= n || j >= n) return 0;
+    return this.forest[j * n + i] / 255;
   }
 
   /** Grid sample, clamped to the edges. */

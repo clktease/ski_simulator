@@ -6,5 +6,14 @@
   "centerLon": 138.842,
   "minElevation": 339.7828369140625,
   "maxElevation": 1110.9415283203125,
-  "attribution": "出典：国土地理院 (GSI DEM tiles)"
+  "attribution": "出典：国土地理院 (GSI DEM tiles)",
+  "outer": {
+    "resolution": 641,
+    "cellM": 32,
+    "sizeM": 20480,
+    "centerLat": 36.9435,
+    "centerLon": 138.842,
+    "minElevation": 169.79649353027344,
+    "maxElevation": 1930.2716064453125
+  }
 }

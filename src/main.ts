@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Engine } from './core/Engine';
 import { FlyCamera } from './core/FlyCamera';
 import { Heightmap } from './world/Heightmap';
-import { buildTerrain } from './world/Terrain';
+import { buildOuterTerrain, buildTerrain } from './world/Terrain';
 import { buildForest } from './world/Trees';
 import { SkyLight } from './world/SkyLight';
 import { loadResort } from './resort/ResortData';
@@ -21,6 +21,8 @@ async function main() {
   const sky = new SkyLight(scene, engine.renderer);
   const mask = new PisteMask(hm, resort);
   scene.add(buildTerrain(hm, mask));
+  const outer = buildOuterTerrain(hm);
+  if (outer) scene.add(outer);
   scene.add(buildForest(hm, mask));
 
   const lifts = resort.lifts.map((l) => new LiftLine(l, hm));
