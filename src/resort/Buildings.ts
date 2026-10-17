@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { Heightmap } from '../world/Heightmap';
 import type { Facility, InteractionPoint } from './ResortData';
+import type { LiftLine } from './Lifts';
 
 /** Rotated rectangle obstacle on the ground plane. */
 export interface Collider {
@@ -11,9 +12,13 @@ export interface Collider {
   rot: number;
 }
 
-export interface WorldInteraction extends InteractionPoint {
-  facility: Facility;
+export interface WorldInteraction extends Omit<InteractionPoint, 'service'> {
+  service: InteractionPoint['service'] | 'lift';
+  facility: Facility | null;
   position: THREE.Vector3;
+  /** activation radius (default 3.5 m) */
+  range?: number;
+  lift?: LiftLine;
 }
 
 const mat = {

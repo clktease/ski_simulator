@@ -13,7 +13,18 @@ export class LiftLine {
   /** closed cable loop: uphill side then downhill side */
   readonly loop: THREE.CurvePath<THREE.Vector3>;
   readonly length: number;
+  /** loop distance from the bottom anchor to the top anchor */
+  readonly upLength: number;
   readonly speed: number; // m/s
+  /** fast-forward while the player rides */
+  speedMultiplier = 1;
+  /** where skiers queue to board (bottom) and where they get off (top) */
+  readonly bottom: THREE.Vector3;
+  readonly top: THREE.Vector3;
+  /** horizontal uphill direction at the top station (to ski away from it) */
+  readonly topDir: THREE.Vector3;
+  readonly boardingPoint: THREE.Vector3;
+  running = true;
   private readonly chairs: THREE.InstancedMesh;
   private offset = 0;
 
@@ -65,6 +76,7 @@ export class LiftLine {
       }
     };
     addSpans(up);
+    this.upLength = this.loop.getLength();
     this.loop.add(new THREE.LineCurve3(up[up.length - 1], down[down.length - 1]));
     addSpans([...down].reverse());
     this.loop.add(new THREE.LineCurve3(down[0], up[0]));
@@ -81,6 +93,13 @@ export class LiftLine {
     const chairGeo = new THREE.BoxGeometry(seatW, 0.12, 0.6).translate(0, -CHAIR_DROP, 0);
     const chairMat = new THREE.MeshStandardMaterial({ color: quad ? 0x2a5aa8 : 0xb03030, roughness: 0.5, metalness: 0.2 });
     const count = Math.floor(this.length / CHAIR_SPACING);
+    this.bottom = pts[0].clone();
+    this.top = pts[pts.length - 1].clone();
+    const firstDir = new THREE.Vector3(pts[1].x - pts[0].x, 0, pts[1].z - pts[0].z).normalize();
+    this.topDir = new THREE.Vector3(this.top.x - pts[pts.length - 2].x, 0, this.top.z - pts[pts.length - 2].z).normalize();
+    // queue area just downhill of the bottom station
+    this.boardingPoint = this.bottom.clone().addScaledVector(firstDir, -9);
+    this.boardingPoint.y = hm.heightAt(this.boardingPoint.x, this.boardingPoint.z);
     this.chairs = new THREE.InstancedMesh(chairGeo, chairMat, count);
     this.chairs.castShadow = true;
     this.group.add(this.chairs);
@@ -96,8 +115,40 @@ export class LiftLine {
     return target.compose(p, new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw + Math.PI / 2), new THREE.Vector3(1, 1, 1));
   }
 
+  get chairCount() {
+    return this.chairs.count;
+  }
+
+  /** Loop distance of chair i right now. */
+  chairDistance(i: number) {
+    return (((this.offset + i * CHAIR_SPACING) % this.length) + this.length) % this.length;
+  }
+
+  /** Index of the chair that most recently passed the bottom bullwheel (the one to board). */
+  nextChair() {
+    let best = 0, bestD = Infinity;
+    for (let i = 0; i < this.chairs.count; i++) {
+      // distance travelled past the bottom anchor, wrapping
+      const d = (this.chairDistance(i) + this.length * 0.02) % this.length;
+      if (d < bestD) { bestD = d; best = i; }
+    }
+    return best;
+  }
+
+  /** Seat transform (where a rider sits) for a loop distance. */
+  seatAt(distance: number) {
+    const m = this.poseAt(distance);
+    const pos = new THREE.Vector3(), q = new THREE.Quaternion();
+    m.decompose(pos, q, new THREE.Vector3());
+    pos.y -= CHAIR_DROP + 0.45; // character root sits ~0.45 m below the hips
+    // chair frame is rotated +90° from the travel direction; riders face along travel
+    const yaw = new THREE.Euler().setFromQuaternion(q, 'YXZ').y - Math.PI / 2;
+    return { pos, yaw };
+  }
+
   update(dt: number) {
-    this.offset += this.speed * dt;
+    if (!this.running) return;
+    this.offset += this.speed * this.speedMultiplier * dt;
     const m = new THREE.Matrix4();
     for (let i = 0; i < this.chairs.count; i++) {
       this.chairs.setMatrixAt(i, this.poseAt(this.offset + i * CHAIR_SPACING, m));

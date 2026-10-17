@@ -1,3 +1,5 @@
 node_modules
 dist
 tools/terrain/cache
+tools/test/out
+tools/test/e2e.log

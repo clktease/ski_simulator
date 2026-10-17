@@ -36,6 +36,40 @@ function bareTreeGeometry() {
   return mergeGeometries(parts.map((g) => g.toNonIndexed()))!;
 }
 
+/** Spatial hash of tree trunks for collisions. */
+export class TreeIndex {
+  private readonly cells = new Map<number, number[]>();
+  private static readonly CELL = 8;
+
+  add(x: number, z: number, radius: number) {
+    const key = TreeIndex.key(Math.floor(x / TreeIndex.CELL), Math.floor(z / TreeIndex.CELL));
+    let list = this.cells.get(key);
+    if (!list) this.cells.set(key, (list = []));
+    list.push(x, z, radius);
+  }
+
+  /** Nearest trunk overlapping a circle at (x, z), or null. */
+  hit(x: number, z: number, r: number): { x: number; z: number; overlap: number } | null {
+    const ci = Math.floor(x / TreeIndex.CELL), cj = Math.floor(z / TreeIndex.CELL);
+    let best: { x: number; z: number; overlap: number } | null = null;
+    for (let dj = -1; dj <= 1; dj++) {
+      for (let di = -1; di <= 1; di++) {
+        const list = this.cells.get(TreeIndex.key(ci + di, cj + dj));
+        if (!list) continue;
+        for (let k = 0; k < list.length; k += 3) {
+          const overlap = r + list[k + 2] - Math.hypot(list[k] - x, list[k + 1] - z);
+          if (overlap > 0 && (!best || overlap > best.overlap)) best = { x: list[k], z: list[k + 1], overlap };
+        }
+      }
+    }
+    return best;
+  }
+
+  private static key(i: number, j: number) {
+    return (i + 4096) * 8192 + (j + 4096);
+  }
+}
+
 /** Forest placed from aerial-photo forest density, kept off pistes and lift lines. */
 export function buildForest(hm: Heightmap, mask: PisteMask, options: Partial<ForestOptions> = {}) {
   const o = { ...DEFAULTS, ...options };
@@ -44,6 +78,7 @@ export function buildForest(hm: Heightmap, mask: PisteMask, options: Partial<For
   const m = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0);
   const green = new THREE.Color(0x26382b), snowy = new THREE.Color(0xc8d2d8);
   const [cx, cz] = o.center;
+  const index = new TreeIndex();
 
   for (let z = cz - o.radius; z <= cz + o.radius; z += o.step) {
     for (let x = cx - o.radius; x <= cx + o.radius; x += o.step) {
@@ -58,6 +93,8 @@ export function buildForest(hm: Heightmap, mask: PisteMask, options: Partial<For
       const s = 0.7 + hash2(px, pz) * 0.8;
       q.setFromAxisAngle(up, hash2(pz, px) * Math.PI * 2);
       m.compose(new THREE.Vector3(px, hm.heightAt(px, pz) - 0.3, pz), q, new THREE.Vector3(s, s * (0.9 + hash2(px * 3, pz) * 0.4), s));
+      // trunk + lower branches collision radius
+      index.add(px, pz, 0.45 * s);
       if (hash2(px * 1.7, pz * 0.3) < o.deciduous) {
         bare.push(m.clone());
       } else {
@@ -88,5 +125,5 @@ export function buildForest(hm: Heightmap, mask: PisteMask, options: Partial<For
     mesh.receiveShadow = true;
     group.add(mesh);
   }
-  return group;
+  return { group, index };
 }

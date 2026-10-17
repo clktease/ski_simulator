@@ -4,20 +4,56 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>岩原スキー場 Simulator</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⛷</text></svg>" />
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
     <div id="app"></div>
-    <div id="hud">
-      <div id="hud-title">岩原スキー場</div>
-      <div id="hud-stats"></div>
+
+    <div id="status">
+      <div class="status-top">
+        <span id="st-clock">08:15</span>
+        <span id="st-weather"></span>
+        <span id="st-money"></span>
+      </div>
+      <div class="bars">
+        <label>體力<span class="bar"><i id="bar-stamina"></i></span></label>
+        <label>飽足<span class="bar"><i id="bar-satiety"></i></span></label>
+        <label>體溫<span class="bar"><i id="bar-warmth"></i></span></label>
+      </div>
+      <ol id="objectives"></ol>
+      <div id="st-debug"></div>
     </div>
+
+    <div id="skihud" hidden>
+      <svg id="speedo" viewBox="0 0 120 120" aria-label="速度表">
+        <circle cx="60" cy="60" r="50" class="dial-bg" />
+        <path id="speedo-arc" class="dial-fg" />
+        <text x="60" y="62" id="speedo-value" class="dial-value">0</text>
+        <text x="60" y="80" class="dial-unit">km/h</text>
+      </svg>
+      <svg id="incline" viewBox="0 0 120 120" aria-label="坡度計">
+        <circle cx="60" cy="60" r="50" class="dial-bg" />
+        <line x1="10" y1="60" x2="110" y2="60" class="horizon" />
+        <g id="incline-needle"><line x1="14" y1="60" x2="106" y2="60" class="needle" /><circle cx="60" cy="60" r="4" class="needle-hub" /></g>
+        <text x="60" y="92" id="incline-value" class="dial-value small">0°</text>
+        <text x="60" y="106" class="dial-unit">坡度</text>
+      </svg>
+      <dl id="ski-readouts"></dl>
+    </div>
+
     <div id="help"></div>
     <div id="prompt" hidden></div>
-    <div id="panel" hidden>
+    <div id="toast" hidden></div>
+    <div id="fade"></div>
+
+    <div id="panel" class="modal" hidden>
       <div class="panel-head"><span class="panel-title"></span><button class="panel-close" aria-label="關閉">×</button></div>
       <div class="panel-body"></div>
     </div>
+
+    <div id="summary" class="modal wide" hidden></div>
+
     <div id="loading">載入地形中…</div>
     <div id="attribution">出典：国土地理院 · © OpenStreetMap contributors</div>
     <script type="module" src="/src/main.ts"></script>

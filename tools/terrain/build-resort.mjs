@@ -10,7 +10,8 @@ const BOUNDS = {
 };
 
 const id = process.argv[2] ?? 'iwappara';
-const b = BOUNDS[id];
+// optional: restrict to the resort's own area when neighbouring resorts share the square
+const b = BOUNDS[id] ?? null;
 const dir = path.resolve('public/data', id);
 const meta = JSON.parse(fs.readFileSync(path.join(dir, 'heightmap.json'), 'utf8'));
 const osm = JSON.parse(fs.readFileSync(path.resolve(`tools/terrain/cache/osm_${id}.json`), 'utf8'));
@@ -23,6 +24,7 @@ const toLocal = (p) => [
 ];
 
 const inside = (geom) => {
+  if (!b) return true;
   const lat = geom.reduce((s, p) => s + p.lat, 0) / geom.length;
   const lon = geom.reduce((s, p) => s + p.lon, 0) / geom.length;
   return lat >= b.s && lat <= b.n && lon >= b.w && lon <= b.e;

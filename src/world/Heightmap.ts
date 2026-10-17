@@ -95,6 +95,13 @@ export class Heightmap {
     return target;
   }
 
+  /** Keep a point inside the detailed terrain square. */
+  clampInside(p: THREE.Vector3, margin = 10) {
+    const lim = this.half - margin;
+    p.x = THREE.MathUtils.clamp(p.x, -lim, lim);
+    p.z = THREE.MathUtils.clamp(p.z, -lim, lim);
+  }
+
   /** Grid sample, clamped to the edges. */
   at(i: number, j: number) {
     const n = this.meta.resolution;

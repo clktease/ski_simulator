@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type { QualitySettings } from './Quality';
 
 export type UpdateFn = (dt: number, elapsed: number) => void;
 
@@ -9,13 +10,13 @@ export class Engine {
   private readonly clock = new THREE.Clock();
   private readonly updaters: UpdateFn[] = [];
 
-  constructor(container: HTMLElement) {
+  constructor(container: HTMLElement, readonly quality: QualitySettings) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer.setPixelRatio(quality.pixelRatio);
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 0.55;
-    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.enabled = quality.shadowMap > 0;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     container.appendChild(this.renderer.domElement);
 
