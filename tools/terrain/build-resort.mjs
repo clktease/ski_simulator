@@ -41,14 +41,20 @@ for (const el of osm.elements) {
   }
 }
 
+// Hand-placed facilities (centre house, hotel, rest house...) live next to this script
+const facilitiesFile = path.resolve('tools/terrain/facilities', `${id}.json`);
+const hand = fs.existsSync(facilitiesFile) ? JSON.parse(fs.readFileSync(facilitiesFile, 'utf8')) : {};
+
 const resort = {
   id,
   name: '岩原スキー場',
   attribution: ['出典：国土地理院', '© OpenStreetMap contributors (ODbL)'],
   runs,
   lifts,
-  facilities: [], // filled in by hand / editor tool
+  spawn: hand.spawn ?? { x: 0, z: 0, heading: 0 },
+  facilities: hand.facilities ?? [],
+  paths: hand.paths ?? [],
 };
 fs.writeFileSync(path.join(dir, 'resort.json'), JSON.stringify(resort, null, 1));
-console.log(`${id}: ${runs.length} runs, ${lifts.length} lifts`);
+console.log(`${id}: ${runs.length} runs, ${lifts.length} lifts, ${resort.facilities.length} facilities`);
 for (const l of lifts) console.log(`  lift ${l.name ?? '(unnamed)'} ${l.points.length} pts`);

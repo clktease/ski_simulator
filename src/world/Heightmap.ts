@@ -51,6 +51,50 @@ export class Heightmap {
     return this.forest[j * n + i] / 255;
   }
 
+  /**
+   * Grade a rotated rectangle flat (building pads, parking lots), blending back into
+   * the natural slope over `blend` metres. Must run before meshes are built.
+   * Returns the pad elevation.
+   */
+  flattenRect(cx: number, cz: number, width: number, depth: number, rotationRad: number, blend = 8) {
+    const { resolution: n, cellM } = this.meta;
+    const cos = Math.cos(rotationRad), sin = Math.sin(rotationRad);
+    const hw = width / 2, hd = depth / 2;
+    const reach = Math.hypot(hw, hd) + blend;
+    const i0 = Math.max(0, Math.floor((cx - reach + this.half) / cellM));
+    const i1 = Math.min(n - 1, Math.ceil((cx + reach + this.half) / cellM));
+    const j0 = Math.max(0, Math.floor((cz - reach + this.half) / cellM));
+    const j1 = Math.min(n - 1, Math.ceil((cz + reach + this.half) / cellM));
+
+    // Local frame: rotation.y turns local +z towards (sin r, cos r)
+    const toLocal = (x: number, z: number): [number, number] => {
+      const dx = x - cx, dz = z - cz;
+      return [dx * cos - dz * sin, dx * sin + dz * cos];
+    };
+
+    let sum = 0, count = 0;
+    for (let j = j0; j <= j1; j++) {
+      for (let i = i0; i <= i1; i++) {
+        const [lx, lz] = toLocal(-this.half + i * cellM, -this.half + j * cellM);
+        if (Math.abs(lx) <= hw && Math.abs(lz) <= hd) { sum += this.data[j * n + i]; count++; }
+      }
+    }
+    const target = count ? sum / count : this.heightAt(cx, cz);
+
+    for (let j = j0; j <= j1; j++) {
+      for (let i = i0; i <= i1; i++) {
+        const [lx, lz] = toLocal(-this.half + i * cellM, -this.half + j * cellM);
+        const ex = Math.max(0, Math.abs(lx) - hw), ez = Math.max(0, Math.abs(lz) - hd);
+        const d = Math.hypot(ex, ez);
+        if (d >= blend) continue;
+        const w = 1 - THREE.MathUtils.smoothstep(d, 0, blend);
+        const k = j * n + i;
+        this.data[k] += (target - this.data[k]) * w;
+      }
+    }
+    return target;
+  }
+
   /** Grid sample, clamped to the edges. */
   at(i: number, j: number) {
     const n = this.meta.resolution;

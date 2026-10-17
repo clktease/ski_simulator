@@ -1729,5 +1729,176 @@
    ]
   }
  ],
- "facilities": []
+ "spawn": {
+  "x": -60,
+  "z": 735,
+  "heading": 110
+ },
+ "facilities": [
+  {
+   "id": "parking-central",
+   "name": "中央駐車場",
+   "type": "parking",
+   "x": -100,
+   "z": 740,
+   "width": 90,
+   "depth": 150,
+   "rotation": 0
+  },
+  {
+   "id": "center-house",
+   "name": "センターハウス",
+   "type": "center_house",
+   "x": 30,
+   "z": 700,
+   "width": 42,
+   "depth": 20,
+   "height": 9,
+   "rotation": 285,
+   "points": [
+    {
+     "service": "ticket",
+     "label": "售票處（リフト券売場）",
+     "at": [
+      -14,
+      11
+     ]
+    },
+    {
+     "service": "rental",
+     "label": "雪具租借（レンタル）",
+     "at": [
+      -2,
+      11
+     ]
+    },
+    {
+     "service": "locker",
+     "label": "更衣室・置物櫃",
+     "at": [
+      8,
+      11
+     ]
+    },
+    {
+     "service": "restaurant",
+     "label": "餐廳（レストラン）",
+     "at": [
+      17,
+      11
+     ]
+    }
+   ]
+  },
+  {
+   "id": "hotel-alpine",
+   "name": "ホテルアルパイン",
+   "type": "hotel",
+   "x": 128,
+   "z": 628,
+   "width": 36,
+   "depth": 18,
+   "height": 14,
+   "rotation": 270,
+   "points": [
+    {
+     "service": "dinner",
+     "label": "飯店晚餐（夕食）",
+     "at": [
+      0,
+      10
+     ]
+    }
+   ]
+  },
+  {
+   "id": "mountain-restaurant",
+   "name": "山頂レストハウス",
+   "type": "restaurant",
+   "x": -100,
+   "z": -330,
+   "width": 22,
+   "depth": 14,
+   "height": 7,
+   "rotation": 0,
+   "points": [
+    {
+     "service": "restaurant",
+     "label": "山上休息站（レストハウス）",
+     "at": [
+      0,
+      8
+     ]
+    }
+   ]
+  }
+ ],
+ "paths": [
+  {
+   "name": "停車場→センターハウス",
+   "width": 8,
+   "points": [
+    [
+     -55,
+     728
+    ],
+    [
+     -20,
+     715
+    ],
+    [
+     16,
+     703
+    ]
+   ]
+  },
+  {
+   "name": "センターハウス→中央クワッド",
+   "width": 8,
+   "points": [
+    [
+     16,
+     703
+    ],
+    [
+     14,
+     728
+    ],
+    [
+     60,
+     732
+    ],
+    [
+     160,
+     712
+    ],
+    [
+     262,
+     688
+    ]
+   ]
+  },
+  {
+   "name": "センターハウス→ホテル",
+   "width": 6,
+   "points": [
+    [
+     16,
+     703
+    ],
+    [
+     14,
+     674
+    ],
+    [
+     60,
+     660
+    ],
+    [
+     116,
+     630
+    ]
+   ]
+  }
+ ]
 }

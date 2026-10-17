@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { Heightmap } from './Heightmap';
-import { MASK_PISTE, type PisteMask } from '../resort/PisteMask';
+import { MASK_PAVED, MASK_PISTE, type PisteMask } from '../resort/PisteMask';
 
 /** Cheap deterministic hash noise in [0, 1). */
 export function hash2(x: number, z: number) {
@@ -12,6 +12,7 @@ const GROOMED = new THREE.Color(0.95, 0.96, 0.98);
 const POWDER = new THREE.Color(0.88, 0.91, 0.96);
 const UNDER_CANOPY = new THREE.Color(0.62, 0.65, 0.7);
 const ROCK = new THREE.Color(0.32, 0.31, 0.3);
+const ASPHALT = new THREE.Color(0.2, 0.21, 0.23);
 
 function snowColor(c: THREE.Color, slopeDeg: number, forest: number, onPiste: boolean, x: number, z: number) {
   if (onPiste) c.copy(GROOMED);
@@ -45,7 +46,9 @@ export function buildTerrain(hm: Heightmap, mask: PisteMask) {
     const x = pos.getX(k), z = pos.getZ(k);
     const slope = THREE.MathUtils.radToDeg(Math.acos(nrm.getY(k)));
     const forest = hm.forest ? hm.forest[k] / 255 : 0;
-    snowColor(c, slope, forest, (mask.data[k] & MASK_PISTE) !== 0, x, z);
+    const flags = mask.data[k];
+    if (flags & MASK_PAVED) c.copy(ASPHALT).lerp(GROOMED, 0.08 * hash2(Math.floor(x / 2), Math.floor(z / 2)));
+    else snowColor(c, slope, forest, (flags & MASK_PISTE) !== 0, x, z);
     c.toArray(colors, k * 3);
   }
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));

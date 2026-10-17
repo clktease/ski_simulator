@@ -12,7 +12,12 @@
       <div id="hud-title">岩原スキー場</div>
       <div id="hud-stats"></div>
     </div>
-    <div id="help">點擊畫面開始 · WASD 移動 · 滑鼠轉向 · Space/Shift 升降 · 按住 Ctrl 加速 · Esc 釋放滑鼠</div>
+    <div id="help"></div>
+    <div id="prompt" hidden></div>
+    <div id="panel" hidden>
+      <div class="panel-head"><span class="panel-title"></span><button class="panel-close" aria-label="關閉">×</button></div>
+      <div class="panel-body"></div>
+    </div>
     <div id="loading">載入地形中…</div>
     <div id="attribution">出典：国土地理院 · © OpenStreetMap contributors</div>
     <script type="module" src="/src/main.ts"></script>
