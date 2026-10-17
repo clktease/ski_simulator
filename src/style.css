@@ -491,3 +491,41 @@ kbd {
     height: 120px;
   }
 }
+
+#bigmap-wrap {
+  padding: 0 0 10px;
+  width: min(760px, calc(100vw - 32px));
+}
+
+#bigmap {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  max-height: calc(100vh - 140px);
+}
+
+.map-note {
+  margin: 8px 16px 0;
+  font-size: 12px;
+}
+
+#skip-lift {
+  position: fixed;
+  bottom: 64px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 10px 22px;
+  border: none;
+  border-radius: 22px;
+  background: #ffc23d;
+  color: #1a1a1a;
+  font: inherit;
+  font-weight: 700;
+  font-size: 15px;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+#skip-lift[hidden] {
+  display: none;
+}

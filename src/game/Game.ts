@@ -33,14 +33,16 @@ import { switchQuality, type QualityLevel } from '../core/Quality';
 import { Guidance, type GuideTarget } from '../ui/Guidance';
 import { Minimap } from '../ui/Minimap';
 import { WalkGraph } from '../resort/WalkGraph';
+import type { RunPath } from '../resort/RunPaths';
+import type { PisteGuide } from '../world/PisteGuide';
 
 export type Mode = 'walk' | 'ski' | 'lift' | 'fly';
 
 const HELP: Record<Mode, string> = {
-  walk: '點擊畫面鎖定滑鼠 · WASD 走路 · Shift 跑步 · Space 快速移動 · E 互動 · Q 穿上雪板 · G 路線引導 · O 設定',
-  ski: 'A/D 轉彎 · W 蹲低滑降/推進 · S 煞車 · V 第一人稱 · E 搭纜車 · Q 脫下雪板 · G 路線引導 · O 設定',
-  lift: '按住 Space 快轉 · 滑鼠環視風景 · V 第一人稱',
-  fly: '飛行模式 · WASD 移動 · Space/Shift 升降 · R 加速 · M 雪道線 · F 回到角色',
+  walk: 'WASD 走路 · Shift 跑步 · Space 快速移動 · E 互動 · Q 穿上雪板 · G 引導 · M 雪道導覽 · N 地圖 · O 設定',
+  ski: 'A/D 轉彎 · W 蹲低/推進 · S 煞車 · V 第一人稱 · E 搭纜車 · Q 脫雪板 · G 引導 · M 雪道導覽 · N 地圖 · O 設定',
+  lift: '按住 Space 快轉 · Enter 跳過 · 滑鼠環視風景 · V 第一人稱 · N 地圖',
+  fly: '飛行模式 · WASD 移動 · Space/Shift 升降 · R 加速 · M 雪道導覽 · F 回到角色',
 };
 
 /** Lifts that keep running for night skiing (game setting). */
@@ -54,7 +56,8 @@ export interface World {
   sky: SkyLight;
   lifts: LiftLine[];
   buildings: Buildings;
-  runLines: THREE.Object3D;
+  runPaths: RunPath[];
+  pisteGuide: PisteGuide;
 }
 
 export class Game {
@@ -88,6 +91,7 @@ export class Game {
   private routeTimer = 0;
 
   private runDrop = 0;
+  private skipping = false;
   /** lift the player is (or was last) riding, for unloading at its top */
   private ridingLift: LiftLine | null = null;
   private stillTime = 0;
@@ -138,12 +142,17 @@ export class Game {
     });
     this.nightLights = new NightLights(w.hm, nightRuns);
     scene.add(this.nightLights.group);
-    this.npcs = new NpcSkiers(w.hm, w.resort.runs, w.lifts, engine.quality.npcs, (l) => this.liftOpen(l));
+    this.npcs = new NpcSkiers(w.hm, w.runPaths, w.lifts, engine.quality.npcs, (l) => this.liftOpen(l));
     scene.add(this.npcs.group);
 
     this.guide = new Guidance(w.hm);
     scene.add(this.guide.group);
-    this.minimap = new Minimap(w.hm, w.resort);
+    this.minimap = new Minimap(w.hm, w.resort, w.runPaths);
+    const skip = document.getElementById('skip-lift')!;
+    skip.addEventListener('click', () => this.skipLift());
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Escape' && this.minimap.bigOpen) this.minimap.toggleBig(false);
+    });
     this.walkGraph = new WalkGraph(w.resort);
 
     this.state.onChange(() => this.refreshLook());
@@ -166,6 +175,7 @@ export class Game {
     this.mode = m;
     this.hud.setHelp(HELP[m]);
     this.skiHud.visible = m === 'ski' || m === 'lift';
+    document.getElementById('skip-lift')!.hidden = m !== 'lift';
     this.refreshLook();
   }
 
@@ -215,6 +225,28 @@ export class Game {
     s.stats.liftRides++;
     s.emit();
     this.hud.toast(`搭上 ${lift.data.name ?? '纜車'}，按住 Space 可以快轉`);
+  }
+
+  private togglePisteGuide(on = !this.w.pisteGuide.visible) {
+    this.w.pisteGuide.visible = on;
+    this.hud.toast(on ? '雪道導覽：開（顏色＋行進方向箭頭）' : '雪道導覽：關');
+  }
+
+  /** Jump straight to the top station; the clock advances by the ride time. */
+  private skipLift() {
+    const lift = this.ridingLift;
+    if (this.mode !== 'lift' || !lift || this.skipping) return;
+    this.skipping = true;
+    const realSeconds = this.ride.remaining / lift.speed;
+    void this.hud.fade(`搭乘${lift.data.name ?? '纜車'}中…`, () => {
+      this.skipping = false;
+      // the chair may have arrived on its own while the screen faded
+      if (this.mode !== 'lift') return;
+      this.state.pass((realSeconds * this.state.timeScale) / 60);
+      lift.speedMultiplier = 1;
+      this.ride.lift = null;
+      this.arriveTop();
+    }, 250);
   }
 
   private toggleSkis() {
@@ -274,6 +306,7 @@ export class Game {
         row('時間', [8 * 60 + 30, 12 * 60, 15 * 60 + 30, 17 * 60 + 30, 19 * 60].map((t) => [
           `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`, false, () => { this.state.minutes = t; this.state.emit(); },
         ] as [string, boolean, () => void]));
+        row('雪道導覽', [['開', this.w.pisteGuide.visible, () => this.togglePisteGuide(true)], ['關', !this.w.pisteGuide.visible, () => this.togglePisteGuide(false)]]);
         row('其他滑雪者', [['顯示', this.npcEnabled, () => (this.npcEnabled = true)], ['隱藏', !this.npcEnabled, () => (this.npcEnabled = false)]]);
         row('音效', [['開', !this.audio.muted, () => (this.audio.muted = false)], ['關', this.audio.muted, () => (this.audio.muted = true)]]);
         row('畫質', (['low', 'medium', 'high'] as QualityLevel[]).map((q) => [{ low: '低', medium: '中', high: '高' }[q], this.engine.quality.level === q, () => switchQuality(q)] as [string, boolean, () => void]));
@@ -316,7 +349,11 @@ export class Game {
         this.setMode('fly');
       }
     }
-    if (k.wasPressed('KeyM')) this.w.runLines.visible = !this.w.runLines.visible;
+    if (k.wasPressed('KeyM')) this.togglePisteGuide();
+    if (k.wasPressed('KeyN')) this.minimap.toggleBig();
+    if (k.wasPressed('Minus') || k.wasPressed('NumpadSubtract')) this.minimap.zoomBy(1);
+    if (k.wasPressed('Equal') || k.wasPressed('NumpadAdd')) this.minimap.zoomBy(-1);
+    if (k.wasPressed('Enter') && this.mode === 'lift') this.skipLift();
     if (k.wasPressed('KeyV')) {
       this.cam.firstPerson = !this.cam.firstPerson;
       this.cam.pitch = this.cam.firstPerson ? 0.08 : 0.25;
@@ -525,7 +562,7 @@ export class Game {
     const viewer = this.mode === 'fly' ? this.engine.camera.position : p;
     // ground chevrons only make sense on foot
     this.guide.update(dt, elapsed, viewer, target, this.mode === 'walk' ? this.guideRoute : null, viewYaw);
-    this.minimap.update(dt, viewer, this.mode === 'fly' ? viewYaw : this.body.heading, this.guide.enabled ? target?.position ?? null : null, this.guide.enabled ? this.guideRoute : null);
+    this.minimap.update(dt, viewer, this.mode === 'fly' ? viewYaw : this.body.heading, this.guide.enabled ? target?.position ?? null : null, this.guide.enabled ? this.guideRoute : null, elapsed);
   }
 
   private updateHud(dt: number) {
@@ -549,12 +586,11 @@ export class Game {
 
   private nearestRun(x: number, z: number) {
     if ((this.w.mask.get(x, z) & MASK_PISTE) === 0) return '圧雪區外';
-    const label: Record<string, string> = { novice: '初級', easy: '初級', intermediate: '中級', advanced: '上級', expert: '上級', freeride: '非圧雪' };
     let best = '', bestD = Infinity;
-    for (const r of this.w.resort.runs) {
-      for (const [px, pz] of r.points) {
-        const d = (px - x) ** 2 + (pz - z) ** 2;
-        if (d < bestD) { bestD = d; best = `${r.name ?? ''}${r.name ? ' ' : ''}${label[r.difficulty] ?? ''}`; }
+    for (const p of this.w.runPaths) {
+      for (const v of p.pts) {
+        const d = (v.x - x) ** 2 + (v.y - z) ** 2;
+        if (d < bestD) { bestD = d; best = p.name; }
       }
     }
     return best || '雪道';

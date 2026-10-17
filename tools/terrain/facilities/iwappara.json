@@ -117,5 +117,7 @@
         [116, 630]
       ]
     }
-  ]
+  ],
+  "_runNames": "Optional real run names by OSM id, e.g. \"osm-504451734\": \"…コース\". Runs without a name get a descriptive one from the nearest lift.",
+  "runNames": {}
 }

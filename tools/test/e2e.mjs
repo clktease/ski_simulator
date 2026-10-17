@@ -147,8 +147,12 @@ check(s.mode === 'lift' && s.stats.liftRides === 1, `boarded the lift (mode=${s.
 await page.keyboard.down('Space');
 await frames(40);
 await shot('05-lift');
-check(await waitFor(() => window.game.mode === 'ski', 600000, 'top station'), 'arrived at the top and switched to skiing');
 await page.keyboard.up('Space');
+check(await page.$eval('#skip-lift', (e) => !e.hidden), 'skip button shown while riding');
+const minutesBefore = (await state()).minutes;
+await press('Enter');
+check(await waitFor(() => window.game.mode === 'ski', 30000, 'top station'), 'Enter skips to the top station');
+check((await state()).minutes - minutesBefore > 10, 'skipping advances the clock by the ride time');
 s = await state();
 console.log(`  top at y=${s.pos[1].toFixed(0)} m`);
 
@@ -173,6 +177,16 @@ check(s.pos[1] < startY - 5 || s.stats.falls > 0, `skied downhill (Δh=${(s.pos[
 check(s.stats.topSpeed > 2, `top speed recorded ${(s.stats.topSpeed * 3.6).toFixed(0)} km/h`);
 const hudText = await page.$eval('#ski-readouts', (e) => e.textContent);
 check(hudText.includes('海拔') && hudText.includes('雪況'), 'ski HUD shows readouts');
+
+// piste guide and full map
+await press('KeyM');
+check(await page.evaluate(() => window.game.w.pisteGuide.visible), 'M shows the piste guide');
+await press('KeyN');
+check(await page.$eval('#bigmap-wrap', (e) => !e.hidden), 'N opens the full map');
+await frames(3);
+await shot('06c-bigmap');
+await press('KeyN');
+await press('KeyM');
 
 // NPC skiers: fly the camera next to one that is skiing
 const npcCount = await page.evaluate(() => {

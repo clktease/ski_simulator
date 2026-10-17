@@ -3,7 +3,7 @@ import type { FollowCamera } from '../core/FollowCamera';
 import type { LiftLine } from '../resort/Lifts';
 import type { PlayerBody } from './PlayerBody';
 
-const FAST_FORWARD = 8;
+const FAST_FORWARD = 15;
 
 /** Sitting on a real chair of a lift until it reaches the top station. */
 export class LiftRide {

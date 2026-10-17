@@ -59,11 +59,3 @@ export async function loadResort(baseUrl: string): Promise<ResortData> {
   return fetch(`${baseUrl}/resort.json`).then((r) => r.json());
 }
 
-export const DIFFICULTY_COLOR: Record<Difficulty, number> = {
-  novice: 0x3cb371,
-  easy: 0x3cb371,
-  intermediate: 0xd23c3c,
-  advanced: 0x222222,
-  expert: 0x222222,
-  freeride: 0xe08a1e,
-};

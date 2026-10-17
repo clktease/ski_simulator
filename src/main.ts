@@ -7,7 +7,8 @@ import { SkyLight } from './world/SkyLight';
 import { loadResort } from './resort/ResortData';
 import { PisteMask } from './resort/PisteMask';
 import { LiftLine } from './resort/Lifts';
-import { buildRunLines } from './resort/RunLines';
+import { buildRunPaths } from './resort/RunPaths';
+import { PisteGuide } from './world/PisteGuide';
 import { Buildings } from './resort/Buildings';
 import { Game } from './game/Game';
 import { loadQuality } from './core/Quality';
@@ -33,13 +34,13 @@ async function main() {
 
   const lifts = resort.lifts.map((l) => new LiftLine(l, hm));
   for (const l of lifts) scene.add(l.group);
-  const runLines = buildRunLines(hm, resort);
-  runLines.visible = false;
-  scene.add(runLines);
+  const runPaths = buildRunPaths(hm, resort.runs, resort.lifts);
+  const pisteGuide = new PisteGuide(hm, runPaths);
+  scene.add(pisteGuide.group);
   const buildings = new Buildings(resort.facilities, pads);
   scene.add(buildings.group);
 
-  const game = new Game(engine, { hm, resort, mask, trees: forest.index, sky, lifts, buildings, runLines });
+  const game = new Game(engine, { hm, resort, mask, trees: forest.index, sky, lifts, buildings, runPaths, pisteGuide });
 
   const params = new URLSearchParams(location.search);
   // Debug: ?spawn=x,z,headingDeg

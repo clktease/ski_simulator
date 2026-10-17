@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { Heightmap } from '../world/Heightmap';
-import type { Run } from '../resort/ResortData';
+import { samplePath, type RunPath } from '../resort/RunPaths';
 import type { LiftLine } from '../resort/Lifts';
 import { WEAR_COLORS } from '../player/Equipment';
 
@@ -14,13 +14,6 @@ const SKILLS: Record<Skill, { speed: number; turnAmp: number; turnLen: number }>
   expert: { speed: 16, turnAmp: 5, turnLen: 50 },
 };
 
-/** A run polyline oriented downhill with cumulative lengths for arc-length lookup. */
-interface Path {
-  run: Run;
-  pts: THREE.Vector2[];
-  cum: number[];
-  length: number;
-}
 
 /** gone = went home (lifts closed), hidden until a lift opens again */
 type State = 'ski' | 'toLift' | 'lift' | 'gone';
@@ -28,7 +21,7 @@ type State = 'ski' | 'toLift' | 'lift' | 'gone';
 interface Npc {
   state: State;
   skill: Skill;
-  path: Path;
+  path: RunPath;
   s: number;
   phase: number;
   speed: number;
@@ -45,18 +38,18 @@ interface Npc {
 export class NpcSkiers {
   readonly group = new THREE.Group();
   private readonly npcs: Npc[] = [];
-  private readonly paths: Path[];
+  private readonly paths: RunPath[];
   private readonly meshes: { torso: THREE.InstancedMesh; legs: THREE.InstancedMesh; head: THREE.InstancedMesh; ski: THREE.InstancedMesh; board: THREE.InstancedMesh };
 
   constructor(
     private readonly hm: Heightmap,
-    runs: Run[],
+    runs: RunPath[],
     private readonly lifts: LiftLine[],
     count = 60,
     /** whether a lift is currently loading passengers */
     private readonly isOpen: (lift: LiftLine) => boolean = () => true,
   ) {
-    this.paths = runs.filter((r) => !r.area && r.points.length >= 2).map((r) => this.makePath(r)).filter((p) => p.length > 80);
+    this.paths = runs.filter((p) => p.length > 80);
 
     const torsoGeo = mergeGeometries([
       new THREE.CapsuleGeometry(0.17, 0.4, 3, 8).translate(0, 0.38, 0),
@@ -115,24 +108,6 @@ export class NpcSkiers {
     }
   }
 
-  private makePath(run: Run): Path {
-    let pts = run.points.map(([x, z]) => new THREE.Vector2(x, z));
-    if (this.hm.heightAt(pts[0].x, pts[0].y) < this.hm.heightAt(pts[pts.length - 1].x, pts[pts.length - 1].y)) pts = pts.reverse();
-    const cum = [0];
-    for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + pts[i].distanceTo(pts[i - 1]));
-    return { run, pts, cum, length: cum[cum.length - 1] };
-  }
-
-  /** Point and tangent at arc length s. */
-  private sample(p: Path, s: number) {
-    let i = 1;
-    while (i < p.cum.length - 1 && p.cum[i] < s) i++;
-    const t = (s - p.cum[i - 1]) / (p.cum[i] - p.cum[i - 1] || 1);
-    const a = p.pts[i - 1], b = p.pts[i];
-    const tan = b.clone().sub(a).normalize();
-    return { point: a.clone().lerp(b, Math.min(1, Math.max(0, t))), tan };
-  }
-
   private boardLift(npc: Npc, lift: LiftLine, midway = false) {
     npc.state = 'lift';
     npc.lift = lift;
@@ -146,7 +121,7 @@ export class NpcSkiers {
     npc.chair = lift.nextChair();
   }
 
-  private chooseRunFrom(x: number, z: number): Path {
+  private chooseRunFrom(x: number, z: number): RunPath {
     const near = this.paths.filter((p) => p.pts[0].distanceTo(new THREE.Vector2(x, z)) < 350);
     if (near.length) return near[Math.floor(Math.random() * near.length)];
     return this.paths.reduce((best, p) => (p.pts[0].distanceTo(new THREE.Vector2(x, z)) < best.pts[0].distanceTo(new THREE.Vector2(x, z)) ? p : best));
@@ -229,7 +204,7 @@ export class NpcSkiers {
 
   private updateSki(n: Npc, dt: number, player: THREE.Vector3, anyOpen: boolean) {
     const sk = SKILLS[n.skill];
-    const { point, tan } = this.sample(n.path, n.s);
+    const { point, tan } = samplePath(n.path, n.s);
     // cruise faster on gentle slopes, check speed on steep ones
     const slope = this.hm.slopeAt(point.x, point.y);
     const target = sk.speed * THREE.MathUtils.clamp(0.6 + slope / 25, 0.5, 1.4);
