@@ -1,0 +1,10 @@
+{
+  "resolution": 1025,
+  "cellM": 4,
+  "sizeM": 4096,
+  "centerLat": 36.9435,
+  "centerLon": 138.842,
+  "minElevation": 339.7828369140625,
+  "maxElevation": 1110.9415283203125,
+  "attribution": "出典：国土地理院 (GSI DEM tiles)"
+}

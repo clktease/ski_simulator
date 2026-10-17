@@ -1,0 +1,63 @@
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #9fb8d0;
+  font-family: system-ui, 'Noto Sans TC', 'Noto Sans JP', sans-serif;
+  color: #fff;
+}
+
+#app canvas {
+  display: block;
+}
+
+#hud {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  padding: 10px 14px;
+  background: rgba(10, 20, 35, 0.55);
+  border-radius: 8px;
+  backdrop-filter: blur(4px);
+  font-size: 13px;
+  line-height: 1.6;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+#hud-title {
+  font-weight: 600;
+  font-size: 15px;
+  margin-bottom: 4px;
+}
+
+#help {
+  position: fixed;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 12px;
+  background: rgba(10, 20, 35, 0.55);
+  border-radius: 6px;
+  font-size: 12px;
+  pointer-events: none;
+}
+
+#loading {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: #1c2a3a;
+  font-size: 18px;
+}
+
+#attribution {
+  position: fixed;
+  right: 8px;
+  bottom: 6px;
+  font-size: 11px;
+  opacity: 0.8;
+  text-shadow: 0 0 3px #000;
+}
