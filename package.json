@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "data": "node tools/terrain/build-heightmap.mjs && node tools/terrain/build-landcover.mjs && node tools/terrain/build-resort.mjs"
+    "data": "node tools/terrain/fetch-osm.mjs && node tools/terrain/build-heightmap.mjs && node tools/terrain/build-landcover.mjs && node tools/terrain/build-resort.mjs"
   },
   "dependencies": {
     "three": "^0.186.1"
