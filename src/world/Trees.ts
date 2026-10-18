@@ -15,12 +15,52 @@ export interface ForestOptions {
 
 const DEFAULTS: ForestOptions = { center: [-100, -150], radius: 1600, step: 7.5, max: 90000, deciduous: 0.35 };
 
+const NEEDLES = new THREE.Color(0x2b4a33), NEEDLES_DARK = new THREE.Color(0x13261a), SNOW = new THREE.Color(0xe8eef5), BARK = new THREE.Color(0x4a3426);
+
+/** Paint a geometry with one colour, or per vertex via `fn(y, normalY)`. */
+function paint(geo: THREE.BufferGeometry, fn: (y: number, ny: number, out: THREE.Color) => void) {
+  const pos = geo.attributes.position, nrm = geo.attributes.normal;
+  const col = new Float32Array(pos.count * 3), c = new THREE.Color();
+  for (let i = 0; i < pos.count; i++) {
+    fn(pos.getY(i), nrm.getY(i), c);
+    c.toArray(col, i * 3);
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  return geo;
+}
+
+/**
+ * Japanese cedar (杉): a narrow spire of drooping tiers, snow lying on the top of each tier,
+ * dark undersides. Colours are baked per vertex; instance colour only varies brightness.
+ */
 function cedarGeometry() {
-  // Two stacked cones read as a Japanese cedar (杉) from a distance
-  const lower = new THREE.ConeGeometry(2.6, 7, 7).translate(0, 5.5, 0);
-  const upper = new THREE.ConeGeometry(1.7, 5.5, 7).translate(0, 9.5, 0);
-  const trunk = new THREE.CylinderGeometry(0.25, 0.35, 3, 5).translate(0, 1.5, 0);
-  return mergeGeometries([lower, upper, trunk].map((g) => g.toNonIndexed()))!;
+  const parts: THREE.BufferGeometry[] = [];
+  const TIERS = 5;
+  for (let i = 0; i < TIERS; i++) {
+    const k = i / TIERS;
+    const r = 2.9 * (1 - k * 0.72), h = 3.4 - k * 0.6, base = 2.2 + i * 1.95;
+    const tier = new THREE.ConeGeometry(r, h, 8, 1).toNonIndexed();
+    // ragged rim: push rim vertices in and out so tiers do not look turned on a lathe
+    const pos = tier.attributes.position as THREE.BufferAttribute;
+    for (let v = 0; v < pos.count; v++) {
+      if (pos.getY(v) > -h / 2 + 1e-3) continue;
+      const ang = Math.atan2(pos.getZ(v), pos.getX(v));
+      const f = 1 + 0.18 * Math.sin(ang * 3 + i * 1.7) + 0.08 * Math.sin(ang * 7 + i);
+      pos.setXYZ(v, pos.getX(v) * f, pos.getY(v) - 0.25 * (f - 1) * 4, pos.getZ(v) * f);
+    }
+    tier.computeVertexNormals();
+    tier.translate(0, base + h / 2, 0);
+    paint(tier, (y, ny, c) => {
+      if (ny < -0.3) return c.copy(NEEDLES_DARK);
+      const t = THREE.MathUtils.clamp((y - base) / h, 0, 1);
+      // snow collects on the upper half of each tier
+      c.copy(NEEDLES).lerp(SNOW, THREE.MathUtils.smoothstep(t, 0.35, 0.85) * 0.85);
+    });
+    parts.push(tier);
+  }
+  const trunk = new THREE.CylinderGeometry(0.22, 0.38, 3, 6, 1, true).translate(0, 1.5, 0).toNonIndexed();
+  parts.push(paint(trunk, (_y, _n, c) => c.copy(BARK)));
+  return mergeGeometries(parts)!;
 }
 
 function bareTreeGeometry() {
@@ -33,7 +73,7 @@ function bareTreeGeometry() {
     branch.translate(0, 4 + b * 1.0, 0);
     parts.push(branch);
   }
-  return mergeGeometries(parts.map((g) => g.toNonIndexed()))!;
+  return mergeGeometries(parts.map((g) => paint(g.toNonIndexed(), (_y, _n, c) => c.set(0x5a5048))))!;
 }
 
 /** Spatial hash of tree trunks for collisions. */
@@ -76,7 +116,7 @@ export function buildForest(hm: Heightmap, mask: PisteMask, options: Partial<For
   const cedars: THREE.Matrix4[] = [], cedarColors: THREE.Color[] = [];
   const bare: THREE.Matrix4[] = [];
   const m = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0);
-  const green = new THREE.Color(0x26382b), snowy = new THREE.Color(0xc8d2d8);
+
   const [cx, cz] = o.center;
   const index = new TreeIndex();
 
@@ -99,7 +139,9 @@ export function buildForest(hm: Heightmap, mask: PisteMask, options: Partial<For
         bare.push(m.clone());
       } else {
         cedars.push(m.clone());
-        cedarColors.push(green.clone().lerp(snowy, 0.05 + 0.3 * hash2(pz * 2.3, px)));
+        // brightness and a slight hue shift per tree; the green and snow are in the vertex colours
+        const v = 0.78 + 0.32 * hash2(pz * 2.3, px), hue = (hash2(px * 0.7, pz * 1.9) - 0.5) * 0.12;
+        cedarColors.push(new THREE.Color(v * (1 + hue), v, v * (1 - hue)));
       }
     }
   }
@@ -110,10 +152,11 @@ export function buildForest(hm: Heightmap, mask: PisteMask, options: Partial<For
 
 /** Far-away stand-ins: a single open cone per tree, a few triangles instead of ~50. */
 function cedarFarGeometry() {
-  return new THREE.ConeGeometry(2.5, 11, 6, 1, true).translate(0, 7, 0);
+  const geo = new THREE.ConeGeometry(2.6, 11.5, 6, 1, true).translate(0, 7.2, 0);
+  return paint(geo, (y, _n, c) => c.copy(NEEDLES).lerp(SNOW, THREE.MathUtils.smoothstep(y, 2, 13) * 0.55));
 }
 function bareFarGeometry() {
-  return new THREE.ConeGeometry(0.9, 9, 3, 1, true).translate(0, 4.5, 0);
+  return paint(new THREE.ConeGeometry(0.9, 9, 3, 1, true).translate(0, 4.5, 0), (_y, _n, c) => c.set(0x5a5048));
 }
 
 const CELL = 400; // m per forest cell
@@ -128,8 +171,8 @@ class ForestLod {
   private readonly cells: { near: THREE.InstancedMesh[]; far: THREE.InstancedMesh[]; x: number; z: number; isNear: boolean }[] = [];
 
   constructor(cedars: THREE.Matrix4[], cedarColors: THREE.Color[], bare: THREE.Matrix4[]) {
-    const cedarMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95, flatShading: true });
-    const bareMat = new THREE.MeshStandardMaterial({ color: 0x5a5048, roughness: 1 });
+    const cedarMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 });
+    const bareMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 });
     const kinds = [
       { near: cedarGeometry(), far: cedarFarGeometry(), mat: cedarMat, list: cedars, colors: cedarColors as THREE.Color[] | null },
       { near: bareTreeGeometry(), far: bareFarGeometry(), mat: bareMat, list: bare, colors: null },

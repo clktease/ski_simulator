@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { mergeStatic } from '../world/merge';
+import { pbr, worldUvBox } from '../world/Materials';
 import type { Heightmap } from '../world/Heightmap';
 import type { Facility, InteractionPoint } from './ResortData';
 import type { LiftLine } from './Lifts';
@@ -22,16 +23,26 @@ export interface WorldInteraction extends Omit<InteractionPoint, 'service'> {
   lift?: LiftLine;
 }
 
+// UVs are in metres / 2 (see worldUvBox), so repeat 1 = one texture tile per 2 m
 const mat = {
-  wall: new THREE.MeshStandardMaterial({ color: 0xd8c9ad, roughness: 0.9 }),
-  wood: new THREE.MeshStandardMaterial({ color: 0x6e4b33, roughness: 0.8 }),
-  concrete: new THREE.MeshStandardMaterial({ color: 0xb8b4ac, roughness: 0.95 }),
-  roof: new THREE.MeshStandardMaterial({ color: 0x5b2f26, roughness: 0.6, metalness: 0.3 }),
-  snow: new THREE.MeshStandardMaterial({ color: 0xf4f6fa, roughness: 0.7 }),
-  glass: new THREE.MeshStandardMaterial({ color: 0x1d2a36, roughness: 0.08, metalness: 0.6, envMapIntensity: 1.5 }),
-  door: new THREE.MeshStandardMaterial({ color: 0x2a2420, roughness: 0.5 }),
+  wall: pbr('brushed_concrete', { color: 0xe6d9bf }),
+  /** cedar siding for the smaller lodges */
+  siding: pbr('japanese_cedar_planks', { color: 0xd9c2a5 }),
+  wood: pbr('japanese_cedar_planks', { color: 0x9a7556 }),
+  concrete: pbr('brushed_concrete', { color: 0xb8b4ac }),
+  roof: pbr('corrugated_iron_02', { color: 0x9a4a3a, repeat: 1.5 }),
+  snow: pbr('snow_02', { arm: false, color: 0xf6f8fc, roughness: 0.75, normalScale: 0.6 }),
+  glass: new THREE.MeshStandardMaterial({ color: 0x1d2a36, roughness: 0.06, metalness: 0.7, envMapIntensity: 1.6, emissive: 0xffc27a, emissiveIntensity: 0 }),
+  door: pbr('japanese_cedar_planks', { color: 0x5a4030 }),
   marker: new THREE.MeshBasicMaterial({ color: 0xffc23d }),
 };
+
+/** ExtrudeGeometry UVs are in metres: bring them to the 2 m tiles used by the boxes */
+function metreUvs<T extends THREE.BufferGeometry>(geo: T) {
+  const uv = geo.attributes.uv as THREE.BufferAttribute;
+  for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) / 2, uv.getY(i) / 2);
+  return geo;
+}
 
 function gableRoofGeometry(width: number, depth: number, rise: number, overhang: number) {
   const hw = width / 2 + overhang, hd = depth / 2 + overhang;
@@ -44,7 +55,7 @@ function gableRoofGeometry(width: number, depth: number, rise: number, overhang:
   const geo = new THREE.ExtrudeGeometry(shape, { depth: hw * 2, bevelEnabled: false });
   geo.translate(0, 0, -hw);
   geo.rotateY(Math.PI / 2);
-  return geo;
+  return metreUvs(geo);
 }
 
 function signTexture(text: string) {
@@ -66,7 +77,7 @@ function signTexture(text: string) {
 }
 
 function box(w: number, h: number, d: number, m: THREE.Material, x = 0, y = 0, z = 0) {
-  const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m);
+  const mesh = new THREE.Mesh(worldUvBox(w, h, d), m);
   mesh.position.set(x, y, z);
   mesh.castShadow = true;
   mesh.receiveShadow = true;
@@ -88,11 +99,15 @@ function windowBands(group: THREE.Group, w: number, d: number, y: number, h: num
 
 function lodge(f: Facility, storeys: number, flatRoof: boolean) {
   const g = new THREE.Group();
+  const wallMat = flatRoof ? mat.wall : mat.siding;
   const storeyH = (f.height ?? 8) / (storeys + (flatRoof ? 0 : 0.6));
   const wallH = storeyH * storeys;
   // concrete plinth: Japanese snow-country buildings sit high above the snowpack
   g.add(box(f.width + 0.4, 1.2, f.depth + 0.4, mat.concrete, 0, 0.6, 0));
-  g.add(box(f.width, wallH, f.depth, mat.wall, 0, 1.2 + wallH / 2, 0));
+  g.add(box(f.width, wallH, f.depth, wallMat, 0, 1.2 + wallH / 2, 0));
+  // storey bands and corner posts break up the big flat walls
+  for (let s = 1; s < storeys; s++) g.add(box(f.width + 0.16, 0.35, f.depth + 0.16, mat.concrete, 0, 1.2 + storeyH * s, 0));
+  for (const [cx, cz] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) g.add(box(0.5, wallH, 0.5, mat.wood, (cx * f.width) / 2, 1.2 + wallH / 2, (cz * f.depth) / 2));
   for (let s = 0; s < storeys; s++) windowBands(g, f.width, f.depth, 1.2 + storeyH * (s + 0.55), storeyH * 0.45);
 
   const top = 1.2 + wallH;
@@ -175,6 +190,11 @@ export class Buildings {
         this.gems.push(m.getObjectByName('gem')!);
       }
     }
+  }
+
+  /** Lit windows after dark (0 day … 1 night). */
+  setNight(night: number) {
+    mat.glass.emissiveIntensity = THREE.MathUtils.smoothstep(night, 0.3, 0.8) * 1.6;
   }
 
   update(elapsed: number) {

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { Heightmap } from './Heightmap';
 import { MASK_PAVED, MASK_PISTE, type PisteMask } from '../resort/PisteMask';
 import { TerrainLod } from './TerrainLod';
+import { terrainMaterial } from './Materials';
 
 /** Cheap deterministic hash noise in [0, 1). */
 export function hash2(x: number, z: number) {
@@ -30,15 +31,18 @@ function gridGeometry(hm: Heightmap) {
   const pos = geo.attributes.position as THREE.BufferAttribute;
   for (let k = 0; k < pos.count; k++) pos.setY(k, hm.data[k]);
   geo.computeVertexNormals();
+  geo.deleteAttribute('uv');
   return geo;
 }
 
 /** Full-resolution terrain with baked vertex colours, split into LOD chunks. */
-export function buildTerrain(hm: Heightmap, mask: PisteMask) {
+export function buildTerrain(hm: Heightmap, mask: PisteMask, detail = true) {
   const geo = gridGeometry(hm);
   const pos = geo.attributes.position as THREE.BufferAttribute;
   const nrm = geo.attributes.normal as THREE.BufferAttribute;
   const colors = new Float32Array(pos.count * 3);
+  // detail-texture weights: x = rock, y = paved, z = groomed piste
+  const splat = new Float32Array(pos.count * 3);
   const c = new THREE.Color();
   for (let k = 0; k < pos.count; k++) {
     const x = pos.getX(k), z = pos.getZ(k);
@@ -48,20 +52,25 @@ export function buildTerrain(hm: Heightmap, mask: PisteMask) {
     if (flags & MASK_PAVED) c.copy(ASPHALT).lerp(GROOMED, 0.08 * hash2(Math.floor(x / 2), Math.floor(z / 2)));
     else snowColor(c, slope, forest, (flags & MASK_PISTE) !== 0, x, z);
     c.toArray(colors, k * 3);
+    const paved = flags & MASK_PAVED ? 1 : 0;
+    splat[k * 3] = paved ? 0 : THREE.MathUtils.smoothstep(slope, 41, 55);
+    splat[k * 3 + 1] = paved;
+    splat[k * 3 + 2] = flags & MASK_PISTE ? 1 : 0;
   }
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  geo.setAttribute('splat', new THREE.BufferAttribute(splat, 3));
 
-  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.82, metalness: 0 });
-  const lod = new TerrainLod(geo, hm.meta.resolution, mat, { distances: [400, 900, 1700], skirt: 20 });
+  const shading = terrainMaterial(detail);
+  const lod = new TerrainLod(geo, hm.meta.resolution, shading.material, { distances: [400, 900, 1700], skirt: 20 });
   geo.dispose();
-  return lod;
+  return { group: lod.group, update: (camera: THREE.Camera) => lod.update(camera), setSun: shading.setSun };
 }
 
 /**
  * Low-res surroundings. Inside the playable square it is sunk below the detailed terrain
  * so the two never z-fight; outside it carries forest tint to read as wooded mountains.
  */
-export function buildOuterTerrain(hm: Heightmap) {
+export function buildOuterTerrain(hm: Heightmap, detail = true) {
   const outer = hm.outer;
   if (!outer) return null;
   const geo = gridGeometry(outer);
@@ -75,6 +84,7 @@ export function buildOuterTerrain(hm: Heightmap) {
 
   const nrm = geo.attributes.normal as THREE.BufferAttribute;
   const colors = new Float32Array(pos.count * 3);
+  const splat = new Float32Array(pos.count * 3);
   const c = new THREE.Color();
   for (let k = 0; k < pos.count; k++) {
     const x = pos.getX(k), y = pos.getY(k), z = pos.getZ(k);
@@ -83,9 +93,11 @@ export function buildOuterTerrain(hm: Heightmap) {
     const forest = (1 - THREE.MathUtils.smoothstep(y, 1300, 1700)) * (0.5 + 0.5 * hash2(Math.floor(x / 200), Math.floor(z / 200)));
     snowColor(c, slope, forest, false, x, z);
     c.toArray(colors, k * 3);
+    splat[k * 3] = THREE.MathUtils.smoothstep(slope, 41, 55);
   }
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-  const lod = new TerrainLod(geo, outer.meta.resolution, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 }), {
+  geo.setAttribute('splat', new THREE.BufferAttribute(splat, 3));
+  const lod = new TerrainLod(geo, outer.meta.resolution, terrainMaterial(detail).material, {
     distances: [2500, 5000, 9000],
     skirt: 30,
     // chunks wholly under the detailed terrain are never seen

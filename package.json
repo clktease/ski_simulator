@@ -10,6 +10,7 @@
     "data": "node tools/terrain/fetch-osm.mjs && node tools/terrain/build-heightmap.mjs && node tools/terrain/build-landcover.mjs && node tools/terrain/build-resort.mjs"
   },
   "dependencies": {
+    "postprocessing": "^6.39.5",
     "three": "^0.186.1"
   },
   "devDependencies": {

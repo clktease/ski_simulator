@@ -12,6 +12,7 @@ import { PisteGuide } from './world/PisteGuide';
 import { Buildings } from './resort/Buildings';
 import { Game } from './game/Game';
 import { loadQuality } from './core/Quality';
+import { PostFX } from './core/PostFX';
 
 const RESORT = 'iwappara';
 const base = `${import.meta.env.BASE_URL}data/${RESORT}`;
@@ -26,9 +27,10 @@ async function main() {
   const pads = Buildings.gradeSites(hm, resort.facilities);
   const sky = new SkyLight(scene, engine.renderer, quality.shadowMap);
   const mask = new PisteMask(hm, resort);
-  const terrain = buildTerrain(hm, mask);
+  const detail = quality.level !== 'low';
+  const terrain = buildTerrain(hm, mask, detail);
   scene.add(terrain.group);
-  const outer = buildOuterTerrain(hm);
+  const outer = buildOuterTerrain(hm, detail);
   if (outer) scene.add(outer.group);
   const forest = buildForest(hm, mask, { max: quality.maxTrees });
   scene.add(forest.group);
@@ -55,10 +57,15 @@ async function main() {
     game.flyTo(new THREE.Vector3(camParam[0], camParam[1], camParam[2]), new THREE.Vector3(camParam[3], camParam[4], camParam[5]));
   }
 
+  const postFx = quality.postFx ? new PostFX(engine, quality.level === 'high') : null;
+
   engine.onUpdate((dt, elapsed) => {
     game.update(dt, elapsed);
     game.input.endFrame();
     terrain.update(engine.camera);
+    terrain.setSun(sky.sunDir, sky.sun.intensity / 3.2);
+    postFx?.setNight(1 - sky.daylight);
+    buildings.setNight(1 - sky.daylight);
     outer?.update(engine.camera);
     forest.update(engine.camera);
   });

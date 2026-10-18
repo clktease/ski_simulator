@@ -61,34 +61,27 @@ export class TerrainLod {
     this.indices = indices;
     const n = CHUNK + 1;
     const vcount = n * n + ring.length;
-    const P = full.attributes.position as THREE.BufferAttribute;
-    const N = full.attributes.normal as THREE.BufferAttribute;
-    const C = full.attributes.color as THREE.BufferAttribute | undefined;
+    // every attribute of the full grid (position, normal, color, splat…) is sliced the same way
+    const names = Object.keys(full.attributes);
 
     for (let cr = 0; cr < cells / CHUNK; cr++) {
       for (let cc = 0; cc < cells / CHUNK; cc++) {
-        const pos = new Float32Array(vcount * 3), nrm = new Float32Array(vcount * 3), col = new Float32Array(vcount * 3);
-        const copy = (dst: number, src: number, drop: number) => {
-          pos[dst * 3] = P.getX(src);
-          pos[dst * 3 + 1] = P.getY(src) - drop;
-          pos[dst * 3 + 2] = P.getZ(src);
-          nrm[dst * 3] = N.getX(src);
-          nrm[dst * 3 + 1] = N.getY(src);
-          nrm[dst * 3 + 2] = N.getZ(src);
-          if (C) {
-            col[dst * 3] = C.getX(src);
-            col[dst * 3 + 1] = C.getY(src);
-            col[dst * 3 + 2] = C.getZ(src);
-          }
-        };
-        const src = (r: number, c: number) => (cr * CHUNK + r) * gridVerts + cc * CHUNK + c;
-        for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) copy(r * n + c, src(r, c), 0);
-        ring.forEach(([r, c], k) => copy(n * n + k, src(r, c), opts.skirt));
-
         const geo = new THREE.BufferGeometry();
-        geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-        geo.setAttribute('normal', new THREE.BufferAttribute(nrm, 3));
-        if (C) geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+        const src = (r: number, c: number) => (cr * CHUNK + r) * gridVerts + cc * CHUNK + c;
+        for (const name of names) {
+          const A = full.attributes[name] as THREE.BufferAttribute;
+          const size = A.itemSize, from = A.array as Float32Array;
+          const out = new Float32Array(vcount * size);
+          const copy = (dst: number, s: number) => {
+            for (let k = 0; k < size; k++) out[dst * size + k] = from[s * size + k];
+          };
+          for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) copy(r * n + c, src(r, c));
+          ring.forEach(([r, c], k) => {
+            copy(n * n + k, src(r, c));
+            if (name === 'position') out[(n * n + k) * 3 + 1] -= opts.skirt;
+          });
+          geo.setAttribute(name, new THREE.BufferAttribute(out, size));
+        }
         geo.setIndex(indices[0]);
         geo.computeBoundingBox();
         geo.computeBoundingSphere();
