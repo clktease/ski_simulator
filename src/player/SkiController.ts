@@ -127,7 +127,9 @@ export class SkiController {
     const travelYaw = speed > 2 ? Math.atan2(this.velocity.x, this.velocity.z) : body.heading;
     this.bobPhase += dt * (6 + speed * 0.8);
     const rough = this.telemetry.snow ? this.telemetry.snow.fallRisk : 1;
-    const shake = cam.firstPerson ? (Math.sin(this.bobPhase) * 0.02 + (Math.random() - 0.5) * 0.004 * speed * rough) * Math.min(speed / 10, 1) : 0;
+    // snow chatter: bob plus jitter growing with speed and rough snow (gentler behind the skier)
+    const chatter = (Math.sin(this.bobPhase) * 0.02 + (Math.random() - 0.5) * 0.004 * speed * rough) * Math.min(speed / 10, 1);
+    const shake = cam.firstPerson ? chatter : chatter * 0.7;
     const eye = cam.firstPerson ? 1.55 - 0.25 * this.crouch : 1.4;
     cam.update(dt, p, { autoYaw: travelYaw, autoRate: 3, speed, shake, eye });
   }

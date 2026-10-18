@@ -81,7 +81,7 @@ export class SkyLight {
     this.sun.intensity = 3.2 * THREE.MathUtils.smoothstep(elevation, 0, 10) * (1 - 0.85 * cloud);
     this.sun.color.setHSL(0.09, 0.6 * lowSun + 0.1, 0.92 - 0.15 * lowSun);
     this.sun.castShadow = this.sun.intensity > 0.3;
-    this.hemi.intensity = 0.1 + day * (0.95 + 0.8 * cloud);
+    this.hemi.intensity = 0.1 + day * (0.75 + 0.8 * cloud);
     this.hemi.color.setHSL(0.6, 0.5 - 0.3 * cloud, 0.55 + 0.25 * day);
 
     // Fog / background colour: blue haze on clear days, grey when overcast, dark blue at night
@@ -98,7 +98,7 @@ export class SkyLight {
   /** Re-render the image-based lighting only when the look changed noticeably. */
   private updateEnvironment(day: number, cloud: number) {
     const key = `${(this.sunDir.x * 10) | 0},${(this.sunDir.y * 20) | 0},${(cloud * 5) | 0}`;
-    this.scene.environmentIntensity = 0.75 * day * (1 - 0.4 * cloud);
+    this.scene.environmentIntensity = 0.6 * day * (1 - 0.4 * cloud);
     if (key === this.lastEnvKey) return;
     this.lastEnvKey = key;
     // a blurry sky is all the image-based lighting needs: 128 px keeps the re-bake to ~1 ms

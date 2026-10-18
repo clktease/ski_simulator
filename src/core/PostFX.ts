@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { BloomEffect, Effect, EffectComposer, EffectPass, RenderPass, SMAAEffect, SMAAPreset } from 'postprocessing';
+import { BloomEffect, Effect, EffectAttribute, EffectComposer, EffectPass, RenderPass, SMAAEffect, SMAAPreset } from 'postprocessing';
 import type { Engine } from './Engine';
 
 /**
@@ -44,11 +44,43 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor)
   }
 }
 
+/**
+ * Speed lines: radial blur towards the screen centre plus faint flickering streaks at the edges,
+ * scaled by Engine.speedFx (0 standing … 1 fast).
+ */
+class SpeedEffect extends Effect {
+  constructor() {
+    super('Speed', /* glsl */ `
+uniform float strength;
+uniform float time;
+void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor) {
+  vec2 d = uv - 0.5;
+  float r = length(d);
+  float m = smoothstep(0.12, 0.7, r) * strength;
+  vec3 acc = inputColor.rgb;
+  for (int i = 1; i < 8; i++) acc += texture2D(inputBuffer, uv - d * (float(i) * 0.011 * m)).rgb;
+  acc /= 8.0;
+  float a = atan(d.y, d.x);
+  float n = fract(sin(floor(a * 110.0) * 12.9898 + floor(time * 18.0) * 78.233) * 43758.5453);
+  float streak = step(0.9, n) * m * smoothstep(0.3, 0.75, r) * 0.18;
+  outputColor = vec4(acc + streak, 1.0);
+}`, {
+      attributes: EffectAttribute.CONVOLUTION,
+      uniforms: new Map<string, THREE.Uniform>([
+        ['strength', new THREE.Uniform(0)],
+        ['time', new THREE.Uniform(0)],
+      ]),
+    });
+  }
+}
+
 /** Bloom for lamps and snow glints, tone mapping/grading and SMAA (`?fxskip=bloom,smaa` to isolate). */
 export class PostFX {
   private readonly composer: EffectComposer;
   private readonly grade = new GradeEffect();
   readonly bloom: BloomEffect;
+  private readonly speed = new SpeedEffect();
+  private readonly speedPass: EffectPass;
 
   constructor(private readonly engine: Engine, highQuality: boolean) {
     const { renderer, scene, camera } = engine;
@@ -57,8 +89,12 @@ export class PostFX {
 
     const skip = new URLSearchParams(location.search).get('fxskip') ?? '';
 
-    this.bloom = new BloomEffect({ intensity: 0.6, luminanceThreshold: 1.15, luminanceSmoothing: 0.25, mipmapBlur: true, radius: 0.6 });
+    // threshold well above sunlit snow (~2–3 in HDR) so only glints, the sun and lamps glow
+    this.bloom = new BloomEffect({ intensity: 0.45, luminanceThreshold: 4, luminanceSmoothing: 0.5, mipmapBlur: true, radius: 0.4 });
     this.composer.addPass(new EffectPass(camera, ...(skip.includes('bloom') ? [] : [this.bloom]), this.grade));
+    this.speedPass = new EffectPass(camera, this.speed);
+    this.speedPass.enabled = false;
+    this.composer.addPass(this.speedPass);
     if (!skip.includes('smaa')) this.composer.addPass(new EffectPass(camera, new SMAAEffect({ preset: highQuality ? SMAAPreset.HIGH : SMAAPreset.MEDIUM })));
 
     // tone mapping happens in GradeEffect
@@ -70,12 +106,16 @@ export class PostFX {
 
   /** Lamps should glow at night: lower the bloom threshold in the dark. */
   setNight(night: number) {
-    this.bloom.luminanceMaterial.threshold = THREE.MathUtils.lerp(1.15, 0.75, night);
-    this.bloom.intensity = THREE.MathUtils.lerp(0.6, 1.1, night);
+    this.bloom.luminanceMaterial.threshold = THREE.MathUtils.lerp(4, 0.9, night);
+    this.bloom.intensity = THREE.MathUtils.lerp(0.45, 1.0, night);
   }
 
   private render() {
     (this.grade.uniforms.get('exposure') as THREE.Uniform).value = this.engine.renderer.toneMappingExposure;
+    const s = this.engine.speedFx;
+    this.speedPass.enabled = s > 0.01;
+    (this.speed.uniforms.get('strength') as THREE.Uniform).value = s;
+    (this.speed.uniforms.get('time') as THREE.Uniform).value = performance.now() / 1000;
     this.composer.render();
   }
 }

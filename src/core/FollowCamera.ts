@@ -56,7 +56,8 @@ export class FollowCamera {
     }
 
     const speed = o.speed ?? 0;
-    const fov = BASE_FOV + Math.min(speed * 0.9, 22) * (this.firstPerson ? 1 : 0.5);
+    // wider field of view with speed: the strongest cue that you are going fast
+    const fov = BASE_FOV + Math.min(speed * 0.9, 22) * (this.firstPerson ? 1 : 0.8);
     if (Math.abs(this.camera.fov - fov) > 0.05) {
       this.camera.fov = THREE.MathUtils.damp(this.camera.fov, fov, 3, dt);
       this.camera.updateProjectionMatrix();
@@ -72,9 +73,12 @@ export class FollowCamera {
       this.camera.lookAt(head.add(dir));
       return;
     }
-    const pos = this.desired(target, eye);
+    // closer and lower at speed so the snow rushes past near the lens
+    const fast = THREE.MathUtils.smoothstep(speed, 5, 22);
+    const pos = this.desired(target, eye - 0.35 * fast, this.dist * (1 - 0.18 * fast));
     this.smoothed.lerp(pos, dt > 0 ? 1 - Math.exp(-dt * 12) : 1);
     this.camera.position.copy(this.smoothed);
+    this.camera.position.y += o.shake ?? 0;
     this.camera.lookAt(target.clone().setY(target.y + eye));
   }
 
@@ -83,9 +87,9 @@ export class FollowCamera {
     return new THREE.Vector3(Math.sin(this.yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(this.yaw) * Math.cos(pitch));
   }
 
-  private desired(target: THREE.Vector3, eye: number) {
+  private desired(target: THREE.Vector3, eye: number, dist = this.dist) {
     // behind the player (opposite the look direction) and raised by the pitch
-    const pos = target.clone().setY(target.y + eye).addScaledVector(this.direction(-this.pitch), -this.dist);
+    const pos = target.clone().setY(target.y + eye).addScaledVector(this.direction(-this.pitch), -dist);
     pos.y = Math.max(pos.y, this.groundAt(pos.x, pos.z) + 0.6);
     return pos;
   }

@@ -9,6 +9,7 @@ import type { SkyLight } from '../world/SkyLight';
 import { Weather, WEATHER, type WeatherType } from '../world/Weather';
 import { SNOW, snowAt, type SnowType } from '../world/SnowConditions';
 import { SnowParticles } from '../world/SnowParticles';
+import { SnowSpray } from '../world/SnowSpray';
 import { NightLights } from '../world/NightLights';
 import type { ResortData } from '../resort/ResortData';
 import { MASK_PISTE, type PisteMask } from '../resort/PisteMask';
@@ -81,6 +82,7 @@ export class Game {
   private readonly panel: Panel;
   private readonly interaction: InteractionUI;
   private readonly particles = new SnowParticles();
+  private readonly spray = new SnowSpray();
   private readonly nightLights: NightLights;
   private readonly npcs: NpcSkiers;
   private readonly audio = new SkiAudio();
@@ -136,7 +138,7 @@ export class Game {
       endDay: () => this.endDay(),
     };
 
-    scene.add(this.body.character.root, this.particles.points);
+    scene.add(this.body.character.root, this.particles.points, this.spray.points);
     const nightRuns = w.resort.runs.filter((r) => {
       const central = w.lifts.find((l) => NIGHT_LIFT.test(l.data.name ?? ''));
       if (!central) return false;
@@ -415,6 +417,10 @@ export class Game {
     const viewer = this.mode === 'fly' ? this.engine.camera.position : this.body.position;
     this.w.sky.follow(viewer);
     this.particles.update(dt, this.engine.camera, this.weather.current.snowfall, this.weather.wind, 0.75 + 0.25 * this.w.sky.daylight);
+    const skiing = this.mode === 'ski' && !this.ski.fallen;
+    this.spray.update(dt, this.body.position, skiing ? this.ski.telemetry.skid : 0, skiing, this.engine.renderer.domElement.height);
+    const speedFx = skiing ? THREE.MathUtils.smoothstep(this.ski.telemetry.speed, 7, 22) : 0;
+    this.engine.speedFx = THREE.MathUtils.damp(this.engine.speedFx, speedFx, 4, dt);
     this.nightLights.update(this.w.sky.daylight < 0.6 && s.minutes <= LIFTS_CLOSE_NIGHT + 30, viewer);
     for (const l of this.w.lifts) {
       const ridingThis = this.mode === 'lift' && this.ridingLift === l;

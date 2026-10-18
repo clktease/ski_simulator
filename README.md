@@ -75,6 +75,7 @@ node tools/test/e2e.mjs           # 需先 npm run dev；用本機 Chrome 走完
 node tools/test/bench.mjs high    # 需先 npm run dev；用真實 GPU 量幾個固定視角的 fps、CPU、draw calls、三角形
 node tools/test/shots.mjs         # 固定視角截圖（tools/test/out/shots/），檢查 LOD 接縫與畫面
 node tools/test/profile.mjs       # 主執行緒 5 秒 CPU profile，列出最耗時的函式
+node tools/test/ski-shot.mjs out.png 7   # 從中央クワッド山頂直滑 7 秒後截圖，檢查速度感效果
 ```
 
 ## 資料來源

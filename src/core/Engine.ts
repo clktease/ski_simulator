@@ -45,6 +45,8 @@ export class Engine {
   readonly perf: PerfHud;
   private readonly dynRes: DynamicResolution;
   dynamicResolution: boolean;
+  /** 0 … 1 sense-of-speed effects (speed lines), set by the game while skiing */
+  speedFx = 0;
   /** Replaced by the post-processing chain when it is enabled. */
   renderFn: () => void = () => this.renderer.render(this.scene, this.camera);
 
