@@ -5,6 +5,7 @@ import { Sky } from 'three/examples/jsm/objects/Sky.js';
 const SUNRISE = 6 * 60 + 55;
 const SUNSET = 16 * 60 + 50;
 const NOON_ELEVATION = 31;
+const CLEAR_FOG = new THREE.Color(0xc9d8e8), GREY_FOG = new THREE.Color(0xcdd2d8), NIGHT_FOG = new THREE.Color(0x0b1120);
 
 export interface SkyConditions {
   /** minutes since midnight */
@@ -25,7 +26,9 @@ export class SkyLight {
   daylight = 1;
   private readonly sky = new Sky();
   private readonly pmrem: THREE.PMREMGenerator;
-  private envTexture: THREE.Texture | null = null;
+  private envTarget: THREE.WebGLRenderTarget | null = null;
+  /** shares the sky material, so sun/turbidity uniforms carry over */
+  private readonly envScene = new THREE.Scene();
   private lastEnvKey = '';
 
   constructor(
@@ -38,6 +41,7 @@ export class SkyLight {
     u.mieCoefficient.value = 0.004;
     u.mieDirectionalG.value = 0.8;
     scene.add(this.sky);
+    this.envScene.add(new THREE.Mesh(this.sky.geometry, this.sky.material));
 
     const cam = this.sun.shadow.camera;
     cam.left = cam.bottom = -220;
@@ -80,8 +84,7 @@ export class SkyLight {
     this.hemi.color.setHSL(0.6, 0.5 - 0.3 * cloud, 0.55 + 0.25 * day);
 
     // Fog / background colour: blue haze on clear days, grey when overcast, dark blue at night
-    const clearFog = new THREE.Color(0xc9d8e8), greyFog = new THREE.Color(0xcdd2d8), nightFog = new THREE.Color(0x0b1120);
-    this.fog.color.copy(clearFog).lerp(greyFog, cloud).lerp(nightFog, 1 - day);
+    this.fog.color.copy(CLEAR_FOG).lerp(GREY_FOG, cloud).lerp(NIGHT_FOG, 1 - day);
     this.fog.density = c.fogDensity;
     // A heavy overcast hides the sky dome entirely
     this.sky.visible = cloud < 0.75 && day > 0.05;
@@ -97,11 +100,10 @@ export class SkyLight {
     this.scene.environmentIntensity = 0.5 * day * (1 - 0.4 * cloud);
     if (key === this.lastEnvKey) return;
     this.lastEnvKey = key;
-    const envScene = new THREE.Scene();
-    envScene.add(this.sky.clone());
-    this.envTexture?.dispose();
-    this.envTexture = this.pmrem.fromScene(envScene).texture;
-    this.scene.environment = this.envTexture;
+    // a blurry sky is all the image-based lighting needs: 128 px keeps the re-bake to ~1 ms
+    this.envTarget?.dispose();
+    this.envTarget = this.pmrem.fromScene(this.envScene, 0, 0.1, 100, { size: 128 });
+    this.scene.environment = this.envTarget.texture;
   }
 
   /** Keep the shadow frustum centred on the viewer. */

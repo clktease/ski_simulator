@@ -15,6 +15,12 @@ const SKILLS: Record<Skill, { speed: number; turnAmp: number; turnLen: number }>
 };
 
 
+// per-frame scratch objects (no allocations in update)
+const _m = new THREE.Matrix4(), _part = new THREE.Matrix4(), _tmp = new THREE.Matrix4(), _roll = new THREE.Matrix4();
+const _q = new THREE.Quaternion(), _e = new THREE.Euler(), _d = new THREE.Vector3(), _v2 = new THREE.Vector2();
+const ONE = new THREE.Vector3(1, 1, 1);
+const HIDDEN = new THREE.Matrix4().makeScale(0, 0, 0);
+
 /** gone = went home (lifts closed), hidden until a lift opens again */
 type State = 'ski' | 'toLift' | 'lift' | 'gone';
 
@@ -122,17 +128,16 @@ export class NpcSkiers {
   }
 
   private chooseRunFrom(x: number, z: number): RunPath {
-    const near = this.paths.filter((p) => p.pts[0].distanceTo(new THREE.Vector2(x, z)) < 350);
+    const at = _v2.set(x, z);
+    const near = this.paths.filter((p) => p.pts[0].distanceTo(at) < 350);
     if (near.length) return near[Math.floor(Math.random() * near.length)];
-    return this.paths.reduce((best, p) => (p.pts[0].distanceTo(new THREE.Vector2(x, z)) < best.pts[0].distanceTo(new THREE.Vector2(x, z)) ? p : best));
+    return this.paths.reduce((best, p) => (p.pts[0].distanceTo(at) < best.pts[0].distanceTo(at) ? p : best));
   }
 
   update(dt: number, player: THREE.Vector3, visible: boolean) {
     this.group.visible = visible;
-    const m = new THREE.Matrix4(), part = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
-    const one = new THREE.Vector3(1, 1, 1);
 
-    const hidden = new THREE.Matrix4().makeScale(0, 0, 0);
+    const m = _m, part = _part;
     const anyOpen = this.lifts.some((l) => this.isOpen(l));
     this.npcs.forEach((n, i) => {
       let sitting = false;
@@ -142,14 +147,14 @@ export class NpcSkiers {
           n.s = 0;
           n.state = 'ski';
         } else {
-          for (const mesh of Object.values(this.meshes)) mesh.setMatrixAt(i, hidden);
+          for (const mesh of Object.values(this.meshes)) mesh.setMatrixAt(i, HIDDEN);
           return;
         }
       }
       if (n.state === 'ski') this.updateSki(n, dt, player, anyOpen);
       else if (n.state === 'toLift') {
         const target = n.lift!.boardingPoint;
-        const d = new THREE.Vector3(target.x - n.pos.x, 0, target.z - n.pos.z);
+        const d = _d.set(target.x - n.pos.x, 0, target.z - n.pos.z);
         const dist = d.length();
         if (dist < 2) this.boardLift(n, n.lift!);
         else {
@@ -181,23 +186,23 @@ export class NpcSkiers {
       }
 
       // base transform: position, heading, lean
-      e.set(0, n.heading, 0, 'YXZ');
-      q.setFromEuler(e);
-      m.compose(n.pos, q, one);
-      const roll = new THREE.Matrix4().makeRotationZ(n.lean);
+      _e.set(0, n.heading, 0, 'YXZ');
+      _q.setFromEuler(_e);
+      m.compose(n.pos, _q, ONE);
+      const roll = _roll.makeRotationZ(n.lean);
       const hip = sitting ? 0.46 : 0.78;
       // torso + head: crouched forward when skiing, upright when seated
-      part.copy(m).multiply(roll).multiply(new THREE.Matrix4().makeTranslation(0, hip, 0)).multiply(new THREE.Matrix4().makeRotationX(sitting ? 0 : 0.35));
+      part.copy(m).multiply(roll).multiply(_tmp.makeTranslation(0, hip, 0)).multiply(_tmp.makeRotationX(sitting ? 0 : 0.35));
       this.meshes.torso.setMatrixAt(i, part);
       this.meshes.head.setMatrixAt(i, part);
       // legs hang from the hips: forward when seated, slightly bent when skiing
-      part.copy(m).multiply(roll).multiply(new THREE.Matrix4().makeTranslation(0, hip + 0.06, 0)).multiply(new THREE.Matrix4().makeRotationX(sitting ? -1.45 : -0.15));
+      part.copy(m).multiply(roll).multiply(_tmp.makeTranslation(0, hip + 0.06, 0)).multiply(_tmp.makeRotationX(sitting ? -1.45 : -0.15));
       this.meshes.legs.setMatrixAt(i, part);
       // gear follows the feet
-      const feet = sitting ? new THREE.Matrix4().makeTranslation(0, hip - 0.12, 0.82) : new THREE.Matrix4();
-      part.copy(m).multiply(feet);
-      this.meshes.ski.setMatrixAt(i, n.snowboard ? hidden : part);
-      this.meshes.board.setMatrixAt(i, n.snowboard ? part : hidden);
+      part.copy(m);
+      if (sitting) part.multiply(_tmp.makeTranslation(0, hip - 0.12, 0.82));
+      this.meshes.ski.setMatrixAt(i, n.snowboard ? HIDDEN : part);
+      this.meshes.board.setMatrixAt(i, n.snowboard ? part : HIDDEN);
     });
     for (const mesh of Object.values(this.meshes)) mesh.instanceMatrix.needsUpdate = true;
   }
@@ -214,7 +219,7 @@ export class NpcSkiers {
     const turnRate = (Math.PI * 2) / sk.turnLen;
     n.phase += n.speed * turnRate * dt;
     const lateral = Math.sin(n.phase) * sk.turnAmp + n.dodge;
-    const normal = new THREE.Vector2(-tan.y, tan.x);
+    const normal = _v2.set(-tan.y, tan.x);
 
     // dodge the player when close
     const px = point.x + normal.x * lateral, pz = point.y + normal.y * lateral;

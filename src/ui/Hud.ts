@@ -7,6 +7,15 @@ export interface Objective {
 
 const $ = (id: string) => document.getElementById(id)!;
 
+/** Last value written per element: skip DOM writes (and the style/layout work they trigger) when nothing changed. */
+const written = new Map<string, string>();
+function write(id: string, value: string, html = false) {
+  if (written.get(id) === value) return;
+  written.set(id, value);
+  if (html) $(id).innerHTML = value;
+  else $(id).textContent = value;
+}
+
 /** Clock, money, body bars, objectives, toasts and fades. */
 export class Hud {
   private toastTimer = 0;
@@ -17,19 +26,22 @@ export class Hud {
   };
 
   update(state: GameState, weatherLabel: string, objectives: Objective[], debug: string) {
-    $('st-clock').textContent = state.clockText;
-    $('st-weather').textContent = weatherLabel;
-    $('st-money').textContent = `¥${state.money.toLocaleString('ja-JP')}`;
+    write('st-clock', state.clockText);
+    write('st-weather', weatherLabel);
+    write('st-money', `¥${state.money.toLocaleString('ja-JP')}`);
     for (const key of ['stamina', 'satiety', 'warmth'] as const) {
-      const v = state[key];
-      this.bars[key].style.width = `${v}%`;
-      this.bars[key].classList.toggle('low', v < 25);
+      const v = Math.round(state[key] * 2) / 2;
+      const width = `${v}%`;
+      if (this.bars[key].style.width !== width) {
+        this.bars[key].style.width = width;
+        this.bars[key].classList.toggle('low', v < 25);
+      }
     }
     const firstOpen = objectives.findIndex((o) => !o.done);
-    $('objectives').innerHTML = objectives
+    write('objectives', objectives
       .map((o, i) => `<li class="${o.done ? 'done' : i === firstOpen ? 'current' : ''}">${o.text}</li>`)
-      .join('');
-    $('st-debug').textContent = debug;
+      .join(''), true);
+    write('st-debug', debug);
   }
 
   toast(message: string, ms = 2800) {
