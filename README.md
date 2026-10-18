@@ -83,3 +83,4 @@ node tools/test/ski-shot.mjs out.png 7   # 從中央クワッド山頂直滑 7 �
 - 高程、航照：出典：国土地理院（地理院タイル）
 - 貼圖、長椅與桌椅模型：Poly Haven（CC0），見 `public/assets/LICENSES.md`
 - 雪道、纜車、設施位置：© OpenStreetMap contributors（ODbL）
+# ski_simulator
