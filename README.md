@@ -11,6 +11,14 @@ npm run dev        # http://localhost:5173/
 
 畫質：`?quality=low|medium|high`（也可以在遊戲內按 O 切換）。
 
+### 效能與 GPU
+
+- **F3**（或 `?stats=1`）顯示 FPS、每幀 CPU 時間、draw calls、三角形數與目前使用的 GPU。
+- 如果瀏覽器落到軟體渲染（SwiftShader 等），畫面上方會提示：到 Chrome「設定 → 系統」開啟「使用圖形加速功能」；筆電可在 Windows「設定 → 顯示器 → 圖形」把 Chrome 設為「高效能」，改用獨顯。
+- **動態解析度**（預設開，O 設定可關，或 `?dynres=0`）：掉幀時自動降低渲染解析度，有餘裕時再升回去。
+- 地形分塊 LOD、樹木分格加遠景低模、只有近處投影，建築與纜車靜態物件合併成每種材質一個 draw call。
+- 後製（中、高畫質）：Bloom（夜間燈光、雪面反光）、ACES 調色、SMAA。`?postfx=0` 關閉，`?fxskip=bloom,smaa` 個別關閉。
+
 ## 操作
 
 | 模式 | 按鍵 |
@@ -55,6 +63,8 @@ npm run data       # OSM 下載 → 高程 → 森林覆蓋 → resort.json
 | `tools/terrain/build-landcover.mjs` | `forest.bin`：從航照估計的森林密度 |
 | `tools/terrain/build-resort.mjs` | `resort.json`：合併 OSM 與 `tools/terrain/facilities/<id>.json` 的手動標註 |
 
+貼圖與小物件模型（Poly Haven，CC0）：`node tools/assets/fetch-assets.mjs` 下載到 `public/assets/`，並重新壓縮；作者列表在 `public/assets/LICENSES.md`。
+
 新增雪場：在 `tools/terrain/common.mjs` 加入中心座標、寫一份 facilities JSON，再依序執行上面四個腳本並帶上 id（例如 `node tools/terrain/build-heightmap.mjs naeba`），最後把 `src/main.ts` 的 `RESORT` 改成該 id。
 
 ## 測試
@@ -62,9 +72,13 @@ npm run data       # OSM 下載 → 高程 → 森林覆蓋 → resort.json
 ```bash
 node tools/test/run-physics.mjs   # 斜面物理：v = g(sinθ − μcosθ)·t、終端速度、煞車、橫滑
 node tools/test/e2e.mjs           # 需先 npm run dev；用本機 Chrome 走完一整天並截圖到 tools/test/out/
+node tools/test/bench.mjs high    # 需先 npm run dev；用真實 GPU 量幾個固定視角的 fps、CPU、draw calls、三角形
+node tools/test/shots.mjs         # 固定視角截圖（tools/test/out/shots/），檢查 LOD 接縫與畫面
+node tools/test/profile.mjs       # 主執行緒 5 秒 CPU profile，列出最耗時的函式
 ```
 
 ## 資料來源
 
 - 高程、航照：出典：国土地理院（地理院タイル）
+- 貼圖、長椅與桌椅模型：Poly Haven（CC0），見 `public/assets/LICENSES.md`
 - 雪道、纜車、設施位置：© OpenStreetMap contributors（ODbL）
