@@ -33,6 +33,7 @@ import { switchQuality, type QualityLevel } from '../core/Quality';
 import { Guidance, type GuideTarget } from '../ui/Guidance';
 import { Minimap } from '../ui/Minimap';
 import { WalkGraph } from '../resort/WalkGraph';
+import { SkiGraph } from '../resort/SkiGraph';
 import type { RunPath } from '../resort/RunPaths';
 import type { PisteGuide } from '../world/PisteGuide';
 
@@ -87,6 +88,7 @@ export class Game {
   private readonly guide: Guidance;
   private readonly minimap: Minimap;
   private readonly walkGraph: WalkGraph;
+  private readonly skiGraph: SkiGraph;
   private guideRoute: THREE.Vector2[] | null = null;
   private routeTimer = 0;
 
@@ -154,6 +156,7 @@ export class Game {
       if (e.code === 'Escape' && this.minimap.bigOpen) this.minimap.toggleBig(false);
     });
     this.walkGraph = new WalkGraph(w.resort);
+    this.skiGraph = new SkiGraph(w.hm, w.runPaths);
 
     this.state.onChange(() => this.refreshLook());
     this.refreshLook();
@@ -536,10 +539,17 @@ export class Game {
       const near = options.sort((a, b) => a.position.distanceTo(this.body.position) - b.position.distanceTo(this.body.position))[0];
       if (near) return { position: near.position, label: `午餐：${near.facility?.name ?? '餐廳'}` };
     }
-    // otherwise: the nearest lift that is loading
+    // first run of the day: all the way down to the base
+    if (this.mode === 'ski' && s.stats.runs === 0 && central && this.body.position.y > central.boardingPoint.y + 20) {
+      return { position: central.boardingPoint, label: '滑到山腳：中央クワッド 乘車處' };
+    }
+    // otherwise: the nearest open lift, preferring ones below the skier (something to ski down to)
+    const here = this.body.position;
     const open = this.w.lifts.filter((l) => this.liftOpen(l));
-    const lift = open.sort((a, b) => a.boardingPoint.distanceTo(this.body.position) - b.boardingPoint.distanceTo(this.body.position))[0];
-    return lift ? { position: lift.boardingPoint, label: `纜車：${lift.data.name ?? '乘車處'}` } : null;
+    const below = open.filter((l) => l.boardingPoint.y < here.y - 15);
+    const pool = this.mode === 'ski' && below.length ? below : open;
+    const lift = pool.sort((a, b) => a.boardingPoint.distanceTo(here) - b.boardingPoint.distanceTo(here))[0];
+    return lift ? { position: lift.boardingPoint, label: `${this.mode === 'ski' ? '滑到' : ''}纜車：${lift.data.name ?? '乘車處'}` } : null;
   }
 
   private updateGuidance(dt: number, elapsed: number) {
@@ -548,11 +558,14 @@ export class Game {
     this.routeTimer -= dt;
     if (this.routeTimer <= 0 || !target) {
       this.routeTimer = 0.3;
-      this.guideRoute = target
-        ? this.mode === 'walk'
+      const straight = () => [new THREE.Vector2(p.x, p.z), new THREE.Vector2(target!.position.x, target!.position.z)];
+      this.guideRoute = !target
+        ? null
+        : this.mode === 'walk'
           ? this.walkGraph.route(p, target.position)
-          : [new THREE.Vector2(p.x, p.z), new THREE.Vector2(target.position.x, target.position.z)]
-        : null;
+          : this.mode === 'ski'
+            ? this.skiGraph.route(p, target.position) ?? straight()
+            : straight();
     } else if (this.guideRoute) {
       // keep the first point glued to the player between re-routes
       this.guideRoute[0].set(p.x, p.z);
@@ -560,8 +573,9 @@ export class Game {
     const dir = this.engine.camera.getWorldDirection(new THREE.Vector3());
     const viewYaw = Math.atan2(dir.x, dir.z);
     const viewer = this.mode === 'fly' ? this.engine.camera.position : p;
-    // ground chevrons only make sense on foot
-    this.guide.update(dt, elapsed, viewer, target, this.mode === 'walk' ? this.guideRoute : null, viewYaw);
+    // ground chevrons on foot and on skis (not from the chair or the free camera)
+    const onGround = this.mode === 'walk' || this.mode === 'ski';
+    this.guide.update(dt, elapsed, viewer, target, onGround ? this.guideRoute : null, viewYaw, this.mode === 'ski' ? 'ski' : 'walk');
     this.minimap.update(dt, viewer, this.mode === 'fly' ? viewYaw : this.body.heading, this.guide.enabled ? target?.position ?? null : null, this.guide.enabled ? this.guideRoute : null, elapsed);
   }
 
