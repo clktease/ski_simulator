@@ -29,7 +29,7 @@ import { Hud } from '../ui/Hud';
 import { SkiHud } from '../ui/SkiHud';
 import { Panel, h } from '../ui/Panel';
 import { InteractionUI } from '../ui/Interaction';
-import { switchQuality, type QualityLevel } from '../core/Quality';
+import { rememberDynamicResolution, switchQuality, type QualityLevel } from '../core/Quality';
 import { Guidance, type GuideTarget } from '../ui/Guidance';
 import { Minimap } from '../ui/Minimap';
 import { WalkGraph } from '../resort/WalkGraph';
@@ -313,6 +313,12 @@ export class Game {
         row('其他滑雪者', [['顯示', this.npcEnabled, () => (this.npcEnabled = true)], ['隱藏', !this.npcEnabled, () => (this.npcEnabled = false)]]);
         row('音效', [['開', !this.audio.muted, () => (this.audio.muted = false)], ['關', this.audio.muted, () => (this.audio.muted = true)]]);
         row('畫質', (['low', 'medium', 'high'] as QualityLevel[]).map((q) => [{ low: '低', medium: '中', high: '高' }[q], this.engine.quality.level === q, () => switchQuality(q)] as [string, boolean, () => void]));
+        const dyn = (on: boolean) => () => {
+          this.engine.dynamicResolution = on;
+          rememberDynamicResolution(on);
+          if (!on) this.engine.setPixelRatio(this.engine.quality.maxPixelRatio);
+        };
+        row('動態解析度', [['開', this.engine.dynamicResolution, dyn(true)], ['關', !this.engine.dynamicResolution, dyn(false)]]);
         const tp = (label: string, x: number, z: number, heading: number) => [label, false, () => { this.teleport(x, z, heading); this.panel.close(); }] as [string, boolean, () => void];
         const top = (name: RegExp) => this.w.lifts.find((l) => name.test(l.data.name ?? ''));
         const quad = top(/中央/), summit = top(/山頂/);
@@ -323,6 +329,8 @@ export class Game {
           ...liftTp('山頂クワッド山頂', summit),
         ]);
         body.append(h('p', { className: 'muted' }, '天氣與雪況會影響能見度、風、摩擦力、抓地力與跌倒機率。'));
+        const gpu = this.engine.gpu;
+        body.append(h('p', { className: 'muted' }, `GPU：${gpu.name}${gpu.software ? '（軟體渲染！請開啟瀏覽器硬體加速）' : gpu.integrated ? '（內顯；筆電可在 Windows 圖形設定把瀏覽器設為高效能 GPU）' : ''}　按 F3 顯示效能資訊`));
       };
       render();
     });
