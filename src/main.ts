@@ -42,6 +42,7 @@ async function main() {
   scene.add(pisteGuide.group);
   const buildings = new Buildings(resort.facilities, pads);
   scene.add(buildings.group);
+  buildings.furnish(hm, resort.facilities).catch((e) => console.warn('props failed to load', e));
 
   const game = new Game(engine, { hm, resort, mask, trees: forest.index, sky, lifts, buildings, runPaths, pisteGuide });
 

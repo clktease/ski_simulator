@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeStatic } from '../world/merge';
-import { pbr, worldUvBox } from '../world/Materials';
+import { pbr, tex, worldUvBox } from '../world/Materials';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { Heightmap } from '../world/Heightmap';
 import type { Facility, InteractionPoint } from './ResortData';
 import type { LiftLine } from './Lifts';
@@ -25,14 +26,16 @@ export interface WorldInteraction extends Omit<InteractionPoint, 'service'> {
 
 // UVs are in metres / 2 (see worldUvBox), so repeat 1 = one texture tile per 2 m
 const mat = {
-  wall: pbr('brushed_concrete', { color: 0xe6d9bf }),
-  /** cedar siding for the smaller lodges */
-  siding: pbr('japanese_cedar_planks', { color: 0xd9c2a5 }),
-  wood: pbr('japanese_cedar_planks', { color: 0x9a7556 }),
-  concrete: pbr('brushed_concrete', { color: 0xb8b4ac }),
+  // the concrete scan is dark (~0.14 linear albedo): tint above 1 to get light rendered walls
+  wall: pbr('brushed_concrete', { color: new THREE.Color(0xf2e6d0).multiplyScalar(3.6) }),
+  /** cedar trim: posts, bands, canopy */
+  wood: pbr('japanese_cedar_planks', { color: 0xa88a70 }),
+  concrete: pbr('brushed_concrete', { color: new THREE.Color(0xc8c4bc).multiplyScalar(2.4) }),
   roof: pbr('corrugated_iron_02', { color: 0x9a4a3a, repeat: 1.5 }),
-  snow: pbr('snow_02', { arm: false, color: 0xf6f8fc, roughness: 0.75, normalScale: 0.6 }),
-  glass: new THREE.MeshStandardMaterial({ color: 0x1d2a36, roughness: 0.06, metalness: 0.7, envMapIntensity: 1.6, emissive: 0xffc27a, emissiveIntensity: 0 }),
+  // snow keeps only the normal map: the diffuse's dirt reads as tiles at roof scale
+  snow: new THREE.MeshStandardMaterial({ color: 0xf4f7fb, roughness: 0.8, normalMap: tex('snow_02', 'nor', 0.5), normalScale: new THREE.Vector2(0.5, 0.5) }),
+  // mirror-like so the windows pick up the sky instead of reading as black holes
+  glass: new THREE.MeshStandardMaterial({ color: 0x9ab8cc, roughness: 0.05, metalness: 1, envMapIntensity: 2.2, emissive: 0xffc27a, emissiveIntensity: 0 }),
   door: pbr('japanese_cedar_planks', { color: 0x5a4030 }),
   marker: new THREE.MeshBasicMaterial({ color: 0xffc23d }),
 };
@@ -99,12 +102,11 @@ function windowBands(group: THREE.Group, w: number, d: number, y: number, h: num
 
 function lodge(f: Facility, storeys: number, flatRoof: boolean) {
   const g = new THREE.Group();
-  const wallMat = flatRoof ? mat.wall : mat.siding;
   const storeyH = (f.height ?? 8) / (storeys + (flatRoof ? 0 : 0.6));
   const wallH = storeyH * storeys;
   // concrete plinth: Japanese snow-country buildings sit high above the snowpack
   g.add(box(f.width + 0.4, 1.2, f.depth + 0.4, mat.concrete, 0, 0.6, 0));
-  g.add(box(f.width, wallH, f.depth, wallMat, 0, 1.2 + wallH / 2, 0));
+  g.add(box(f.width, wallH, f.depth, mat.wall, 0, 1.2 + wallH / 2, 0));
   // storey bands and corner posts break up the big flat walls
   for (let s = 1; s < storeys; s++) g.add(box(f.width + 0.16, 0.35, f.depth + 0.16, mat.concrete, 0, 1.2 + storeyH * s, 0));
   for (const [cx, cz] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) g.add(box(0.5, wallH, 0.5, mat.wood, (cx * f.width) / 2, 1.2 + wallH / 2, (cz * f.depth) / 2));
@@ -154,6 +156,32 @@ function marker() {
   return g;
 }
 
+/** Local placement on a facility: x, z (front = +z), yaw (rad) */
+type Spot = [number, number, number];
+
+/**
+ * Where the glTF props go, per facility type, in the facility's local frame.
+ * Benches stand against the front wall between the counters; terrace tables sit off the side.
+ */
+function propSpots(f: Facility): { bench: Spot[]; table: Spot[] } {
+  const front = f.depth / 2, side = f.width / 2;
+  if (f.type === 'center_house') {
+    return {
+      bench: [-19, -8, 3, 12.5].map((x) => [x, front + 0.55, 0] as Spot),
+      table: [0, 1, 2].flatMap((i) => [[side + 4, front - 2 - i * 4, Math.PI / 2], [side + 8, front - 2 - i * 4, Math.PI / 2]] as Spot[]),
+    };
+  }
+  if (f.type === 'restaurant') {
+    return {
+      bench: [[-side + 2, front + 0.55, 0], [side - 2, front + 0.55, 0]],
+      table: [-8, -5, 5, 8].map((x) => [x, front + 6, 0] as Spot),
+    };
+  }
+  return { bench: [-side + 3, side - 3].map((x) => [x, front + 0.55, 0] as Spot), table: [] };
+}
+
+const MODELS = `${import.meta.env?.BASE_URL ?? '/'}assets/models`;
+
 export class Buildings {
   readonly group = new THREE.Group();
   readonly colliders: Collider[] = [];
@@ -189,6 +217,45 @@ export class Buildings {
         this.group.add(m);
         this.gems.push(m.getObjectByName('gem')!);
       }
+    }
+  }
+
+  /**
+   * Load the CC0 glTF props and scatter them as instanced meshes (one draw call per model part).
+   * Runs after start-up; the resort is playable while they stream in.
+   */
+  async furnish(hm: Heightmap, facilities: Facility[]) {
+    const loader = new GLTFLoader();
+    const load = (id: string) => loader.loadAsync(`${MODELS}/${id}/${id}.gltf`).then((g) => g.scene);
+    const [bench, table] = await Promise.all([load('painted_wooden_bench'), load('outdoor_table_chair_set_01')]);
+    const placements: Record<'bench' | 'table', THREE.Matrix4[]> = { bench: [], table: [] };
+    const q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), one = new THREE.Vector3(1, 1, 1);
+    for (const f of facilities) {
+      if (f.type === 'parking') continue;
+      const rot = THREE.MathUtils.degToRad(f.rotation);
+      const spots = propSpots(f);
+      for (const kind of ['bench', 'table'] as const) {
+        for (const [lx, lz, yaw] of spots[kind]) {
+          const p = new THREE.Vector3(lx, 0, lz).applyAxisAngle(up, rot).add(new THREE.Vector3(f.x, 0, f.z));
+          p.y = hm.heightAt(p.x, p.z);
+          placements[kind].push(new THREE.Matrix4().compose(p, q.setFromAxisAngle(up, rot + yaw), one));
+          const r = kind === 'table' ? 1 : 0.35;
+          this.colliders.push({ x: p.x, z: p.z, halfW: kind === 'table' ? 0.6 : 0.7, halfD: r, rot: rot + yaw });
+        }
+      }
+    }
+    for (const [kind, model] of [['bench', bench], ['table', table]] as const) {
+      const list = placements[kind];
+      if (!list.length) continue;
+      model.updateMatrixWorld(true);
+      model.traverse((o) => {
+        if (!(o instanceof THREE.Mesh)) return;
+        const inst = new THREE.InstancedMesh((o.geometry as THREE.BufferGeometry).clone().applyMatrix4(o.matrixWorld), o.material, list.length);
+        list.forEach((m, i) => inst.setMatrixAt(i, m));
+        inst.castShadow = inst.receiveShadow = true;
+        inst.computeBoundingSphere();
+        this.group.add(inst);
+      });
     }
   }
 

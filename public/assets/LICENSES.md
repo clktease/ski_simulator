@@ -1,6 +1,6 @@
 # Third-party assets
 
-All textures below are from [Poly Haven](https://polyhaven.com) and released under
+All textures and models below are from [Poly Haven](https://polyhaven.com) and released under
 [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) (public domain). Downloaded at 1k by
 `tools/assets/fetch-assets.mjs`.
 
@@ -12,4 +12,5 @@ All textures below are from [Poly Haven](https://polyhaven.com) and released und
 | japanese_cedar_planks | Japanese Cedar Planks | Charlotte Baglioni, Rico Cilliers | https://polyhaven.com/a/japanese_cedar_planks |
 | brushed_concrete | Brushed Concrete  | Dario Barresi, Dimitrios Savva | https://polyhaven.com/a/brushed_concrete |
 | corrugated_iron_02 | Corrugated Iron 02 | Jenelle van Heerden, Sergej Majboroda | https://polyhaven.com/a/corrugated_iron_02 |
-| japanese_cedar_bark | Japanese Cedar Bark | Charlotte Baglioni | https://polyhaven.com/a/japanese_cedar_bark |
+| models/painted_wooden_bench | Painted Wooden Bench | Kirill Sannikov | https://polyhaven.com/a/painted_wooden_bench |
+| models/outdoor_table_chair_set_01 | Outdoor Table Chair Set 01 | James Ray Cock | https://polyhaven.com/a/outdoor_table_chair_set_01 |
