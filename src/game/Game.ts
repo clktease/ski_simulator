@@ -590,7 +590,7 @@ export class Game {
     for (const p of this.w.runPaths) {
       for (const v of p.pts) {
         const d = (v.x - x) ** 2 + (v.y - z) ** 2;
-        if (d < bestD) { bestD = d; best = p.name; }
+        if (d < bestD) { bestD = d; best = p.label; }
       }
     }
     return best || '雪道';

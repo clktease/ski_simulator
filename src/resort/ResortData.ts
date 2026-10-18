@@ -6,6 +6,10 @@ export interface Run {
   id: string;
   name: string | null;
   difficulty: Difficulty;
+  /** Traditional Chinese rendering of the name */
+  nameZh?: string;
+  /** course number on the official trail map */
+  number?: number;
   /** true = polygon outline of a wide slope, false = centre line */
   area: boolean;
   points: Point2[];
@@ -14,6 +18,7 @@ export interface Run {
 export interface Lift {
   id: string;
   name: string | null;
+  nameZh?: string;
   type: string;
   seats: number | null;
   /** bottom station -> pylons -> top station */

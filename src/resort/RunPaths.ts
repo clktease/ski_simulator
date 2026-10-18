@@ -14,7 +14,14 @@ export const DIFFICULTY_LABEL: Record<Difficulty, string> = {
 /** A run's centre line oriented downhill, with arc lengths, a display name and a colour. */
 export interface RunPath {
   run: Run;
+  /** Japanese name (official where known) */
   name: string;
+  /** Traditional Chinese name, '' if unknown */
+  nameZh: string;
+  /** number on the official trail map, or null */
+  number: number | null;
+  /** "メインバーン（主雪坡）" */
+  label: string;
   difficulty: string;
   /** light pastel, distinct per run */
   color: THREE.Color;
@@ -25,8 +32,9 @@ export interface RunPath {
 }
 
 /**
- * Orient every line run downhill and give it a name: the OSM name if there is one, otherwise a
- * descriptive one from the lift whose top is nearest the run's start ("山頂クワッド 上級コース").
+ * Orient every line run downhill and name it: the official name (from the trail map, merged into
+ * resort.json) if known, otherwise a descriptive one from the lift whose top is nearest the run's
+ * start ("山頂クワッド 上級コース"). Segments of the same course share one colour.
  */
 export function buildRunPaths(hm: Heightmap, runs: Run[], lifts: Lift[]): RunPath[] {
   const liftTops = lifts.map((l) => {
@@ -49,7 +57,8 @@ export function buildRunPaths(hm: Heightmap, runs: Run[], lifts: Lift[]): RunPat
     // highest starts first so numbering runs top-down
     .sort((a, b) => hm.heightAt(b.pts[0].x, b.pts[0].y) - hm.heightAt(a.pts[0].x, a.pts[0].y));
 
-  return paths.map((p, i) => {
+  const colorIndex = new Map<string, number>();
+  return paths.map((p) => {
     const difficulty = DIFFICULTY_LABEL[p.run.difficulty] ?? '';
     let name = p.run.name ?? '';
     if (!name) {
@@ -60,8 +69,11 @@ export function buildRunPaths(hm: Heightmap, runs: Run[], lifts: Lift[]): RunPat
       name = n === 1 ? base : `${base} ${n}`;
     }
     // golden-ratio hue spacing keeps neighbours distinct; high lightness = soft colours
-    const color = new THREE.Color().setHSL((i * 0.618034 + 0.05) % 1, 0.7, 0.66);
-    return { ...p, name, difficulty, color, css: `#${color.getHexString()}` };
+    if (!colorIndex.has(name)) colorIndex.set(name, colorIndex.size);
+    const color = new THREE.Color().setHSL((colorIndex.get(name)! * 0.618034 + 0.05) % 1, 0.7, 0.66);
+    const nameZh = p.run.nameZh ?? '';
+    const label = nameZh ? `${name}（${nameZh}）` : name;
+    return { ...p, name, nameZh, number: p.run.number ?? null, label, difficulty, color, css: `#${color.getHexString()}` };
   });
 }
 

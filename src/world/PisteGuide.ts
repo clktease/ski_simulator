@@ -93,30 +93,52 @@ export class PisteGuide {
     return inst;
   }
 
-  /** Billboard with the run's colour and name, standing at its top. */
+  /** Billboard with the course number, colour and Japanese + Chinese name, at the run's top. */
   private sign(hm: Heightmap, p: RunPath) {
+    const W = 560, H = p.nameZh ? 160 : 112;
     const canvas = document.createElement('canvas');
-    canvas.width = 512;
-    canvas.height = 112;
+    canvas.width = W;
+    canvas.height = H;
     const ctx = canvas.getContext('2d')!;
-    ctx.fillStyle = 'rgba(16, 26, 40, 0.82)';
+    ctx.fillStyle = 'rgba(16, 26, 40, 0.84)';
     ctx.beginPath();
-    ctx.roundRect(4, 4, 504, 104, 18);
+    ctx.roundRect(4, 4, W - 8, H - 8, 20);
     ctx.fill();
     ctx.fillStyle = p.css;
     ctx.beginPath();
-    ctx.roundRect(4, 4, 26, 104, [18, 0, 0, 18]);
+    ctx.roundRect(4, 4, 24, H - 8, [20, 0, 0, 20]);
     ctx.fill();
+    let x = 46;
+    if (p.number !== null) {
+      // numbered disc like the resort's trail map
+      ctx.beginPath();
+      ctx.arc(x + 30, H / 2, 30, 0, Math.PI * 2);
+      ctx.fillStyle = p.css;
+      ctx.fill();
+      ctx.fillStyle = '#16202c';
+      ctx.font = 'bold 36px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(String(p.number), x + 30, H / 2 + 1);
+      x += 76;
+    }
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 44px "Noto Sans JP", "Yu Gothic", sans-serif';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(p.name, 48, 56, 450);
+    ctx.fillText(p.name, x, p.nameZh ? H / 2 - 24 : H / 2, W - x - 20);
+    if (p.nameZh) {
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.82)';
+      ctx.font = '34px "Noto Sans TC", "Microsoft JhengHei", sans-serif';
+      ctx.fillText(`${p.nameZh}・${p.difficulty}`, x, H / 2 + 28, W - x - 20);
+    }
     const tex = new THREE.CanvasTexture(canvas);
     tex.colorSpace = THREE.SRGBColorSpace;
     const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthWrite: false }));
     const { point } = samplePath(p, Math.min(12, p.length / 2));
-    sprite.position.set(point.x, hm.heightAt(point.x, point.y) + 4.5, point.y);
-    sprite.scale.set(12, 12 * (112 / 512), 1);
+    // above lift-station roofs (~6 m) so the sign is not hidden behind them
+    sprite.position.set(point.x, hm.heightAt(point.x, point.y) + 7.5, point.y);
+    sprite.scale.set(13, 13 * (H / W), 1);
     sprite.renderOrder = 4;
     return sprite;
   }

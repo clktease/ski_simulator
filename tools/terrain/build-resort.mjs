@@ -47,8 +47,12 @@ for (const el of osm.elements) {
 const facilitiesFile = path.resolve('tools/terrain/facilities', `${id}.json`);
 const hand = fs.existsSync(facilitiesFile) ? JSON.parse(fs.readFileSync(facilitiesFile, 'utf8')) : {};
 
-// Real run names can be filled in by hand: { "runNames": { "osm-123": "パノラマコース" } }
-for (const r of runs) if (hand.runNames?.[r.id]) r.name = hand.runNames[r.id];
+// Official course names/numbers (+ Traditional Chinese) matched to OSM ids by hand
+for (const r of runs) {
+  const c = hand.courses?.[r.id];
+  if (c) Object.assign(r, { name: c.ja, nameZh: c.zh, number: c.no });
+}
+for (const l of lifts) if (l.name && hand.liftNamesZh?.[l.name]) l.nameZh = hand.liftNamesZh[l.name];
 
 const resort = {
   id,

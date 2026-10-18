@@ -10,6 +10,10 @@ const BAKE_M_PER_PX = 2; // resolution of the pre-rendered map
 
 interface Label {
   text: string;
+  /** second, smaller line (Traditional Chinese) */
+  sub: string;
+  /** official course number, shown on the full map */
+  number: number | null;
   /** candidate anchor points, tried in order until one does not collide */
   spots: { x: number; z: number }[];
   color: string;
@@ -34,13 +38,16 @@ export class Minimap {
     this.canvas.height = SIZE * dpr;
     this.ctx = this.canvas.getContext('2d')!;
     this.ctx.scale(dpr, dpr);
-    // longest runs get first pick of label space
+    // longest runs get first pick of label space; one label per course
+    const seen = new Set<string>();
     for (const p of [...paths].sort((a, b) => b.length - a.length)) {
+      if (seen.has(p.name)) continue;
+      seen.add(p.name);
       const spots = [0.45, 0.25, 0.65, 0.85, 0.12].map((t) => {
         const { point } = samplePath(p, p.length * t);
         return { x: point.x, z: point.y };
       });
-      this.labels.push({ text: p.name, spots, color: p.css, kind: 'run' });
+      this.labels.push({ text: p.name, sub: p.nameZh, number: p.number, spots, color: p.css, kind: 'run' });
     }
     this.lifts = resort.lifts.map((l) => l.points.map(([x, z]) => ({ x, z })));
     for (const l of resort.lifts) {
@@ -49,7 +56,7 @@ export class Minimap {
         const [x, z] = l.points[Math.min(l.points.length - 1, Math.floor(l.points.length * t))];
         return { x, z };
       });
-      this.labels.push({ text: `🚡 ${l.name}`, spots, color: '#111', kind: 'lift' });
+      this.labels.push({ text: `🚡 ${l.name}`, sub: l.nameZh ?? '', number: null, spots, color: '#111', kind: 'lift' });
     }
     this.base = this.bake(resort);
   }
@@ -197,23 +204,36 @@ export class Minimap {
     const hits = (b: [number, number, number, number]) => placed.some((q) => b[0] < q[2] && b[2] > q[0] && b[1] < q[3] && b[3] > q[1]);
     for (const l of this.labels) {
       if (l.kind === 'lift' && !big) continue;
-      ctx.font = l.kind === 'run' ? `bold ${big ? 13 : 10}px sans-serif` : `${big ? 12 : 9}px sans-serif`;
-      const tw = ctx.measureText(l.text).width + (l.kind === 'run' ? 10 : 0);
-      const th = big ? 16 : 12;
+      const mainFont = l.kind === 'run' ? `bold ${big ? 13 : 10}px sans-serif` : `${big ? 12 : 9}px sans-serif`;
+      const subFont = `${big ? 11 : 9}px sans-serif`;
+      const text = big && l.number ? `${l.number} ${l.text}` : l.text;
+      ctx.font = mainFont;
+      const w1 = ctx.measureText(text).width;
+      ctx.font = subFont;
+      const w2 = l.sub ? ctx.measureText(l.sub).width : 0;
+      const tw = Math.max(w1, w2) + (l.kind === 'run' ? 10 : 0);
+      const line = big ? 15 : 11;
+      const th = l.sub ? line * 2 : line;
       for (const spot of l.spots) {
         const [x, y] = toMap(spot.x, spot.z);
         const box: [number, number, number, number] = [x - tw / 2 - 2, y - th / 2, x + tw / 2 + 2, y + th / 2];
         if (box[0] < 2 || box[1] < 2 || box[2] > w - 2 || box[3] > h - 2 || hits(box)) continue;
         placed.push(box);
         const tx = x + (l.kind === 'run' ? 5 : 0);
-        ctx.lineWidth = 3;
-        ctx.strokeStyle = 'rgba(255,255,255,0.92)';
-        ctx.strokeText(l.text, tx, y);
-        ctx.fillStyle = l.kind === 'run' ? '#1d2733' : '#333';
-        ctx.fillText(l.text, tx, y);
+        const y1 = l.sub ? y - line / 2 : y;
+        const drawText = (t: string, ty: number, font: string, color: string) => {
+          ctx.font = font;
+          ctx.lineWidth = 3;
+          ctx.strokeStyle = 'rgba(255,255,255,0.92)';
+          ctx.strokeText(t, tx, ty);
+          ctx.fillStyle = color;
+          ctx.fillText(t, tx, ty);
+        };
+        drawText(text, y1, mainFont, l.kind === 'run' ? '#1d2733' : '#333');
+        if (l.sub) drawText(l.sub, y + line / 2, subFont, '#3d4a58');
         if (l.kind === 'run') {
           ctx.fillStyle = l.color;
-          ctx.fillRect(box[0] + 2, y - 4, 7, 8);
+          ctx.fillRect(box[0] + 2, y1 - 4, 7, 8);
         }
         break;
       }

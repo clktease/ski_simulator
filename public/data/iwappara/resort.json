@@ -8,7 +8,7 @@
  "runs": [
   {
    "id": "osm-226375923",
-   "name": null,
+   "name": "クルーズコース",
    "difficulty": "easy",
    "area": false,
    "points": [
@@ -564,11 +564,13 @@
      -70,
      -481
     ]
-   ]
+   ],
+   "nameZh": "巡航滑道",
+   "number": 16
   },
   {
    "id": "osm-504451725",
-   "name": null,
+   "name": "クルーズコース",
    "difficulty": "easy",
    "area": false,
    "points": [
@@ -604,11 +606,13 @@
      -163.8,
      -1243.9
     ]
-   ]
+   ],
+   "nameZh": "巡航滑道",
+   "number": 16
   },
   {
    "id": "osm-504451727",
-   "name": null,
+   "name": "テクニカルコース",
    "difficulty": "advanced",
    "area": false,
    "points": [
@@ -640,11 +644,13 @@
      17.1,
      -578.9
     ]
-   ]
+   ],
+   "nameZh": "技術滑道",
+   "number": 15
   },
   {
    "id": "osm-504451730",
-   "name": null,
+   "name": "ジャイアントコース",
    "difficulty": "advanced",
    "area": false,
    "points": [
@@ -680,11 +686,13 @@
      -143,
      -815.1
     ]
-   ]
+   ],
+   "nameZh": "巨人滑道",
+   "number": 12
   },
   {
    "id": "osm-504451732",
-   "name": null,
+   "name": "ファインスノーバーン",
    "difficulty": "easy",
    "area": false,
    "points": [
@@ -720,11 +728,13 @@
      280.8,
      -725.4
     ]
-   ]
+   ],
+   "nameZh": "細雪雪坡",
+   "number": 19
   },
   {
    "id": "osm-504451734",
-   "name": null,
+   "name": "ナチュラルコース",
    "difficulty": "intermediate",
    "area": false,
    "points": [
@@ -764,11 +774,13 @@
      74.6,
      -999.3
     ]
-   ]
+   ],
+   "nameZh": "自然滑道",
+   "number": 17
   },
   {
    "id": "osm-504451737",
-   "name": null,
+   "name": "スカイコース",
    "difficulty": "intermediate",
    "area": false,
    "points": [
@@ -844,11 +856,13 @@
      -24,
      -554.6
     ]
-   ]
+   ],
+   "nameZh": "天空滑道",
+   "number": 13
   },
   {
    "id": "osm-504451740",
-   "name": null,
+   "name": "フロントコース",
    "difficulty": "intermediate",
    "area": false,
    "points": [
@@ -880,11 +894,13 @@
      -101.5,
      1226.7
     ]
-   ]
+   ],
+   "nameZh": "前山滑道",
+   "number": 10
   },
   {
    "id": "osm-504451742",
-   "name": null,
+   "name": "テラスコース",
    "difficulty": "easy",
    "area": false,
    "points": [
@@ -968,11 +984,13 @@
      18.8,
      955.1
     ]
-   ]
+   ],
+   "nameZh": "露台滑道",
+   "number": 9
   },
   {
    "id": "osm-504451745",
-   "name": null,
+   "name": "パノラマコース",
    "difficulty": "easy",
    "area": false,
    "points": [
@@ -1016,11 +1034,13 @@
      18.8,
      955.1
     ]
-   ]
+   ],
+   "nameZh": "全景滑道",
+   "number": 7
   },
   {
    "id": "osm-504451747",
-   "name": null,
+   "name": "ウエストコース",
    "difficulty": "intermediate",
    "area": false,
    "points": [
@@ -1048,11 +1068,13 @@
      -95.8,
      -0.4
     ]
-   ]
+   ],
+   "nameZh": "西側滑道",
+   "number": 5
   },
   {
    "id": "osm-504451750",
-   "name": null,
+   "name": "チャレンジコース",
    "difficulty": "intermediate",
    "area": false,
    "points": [
@@ -1080,11 +1102,13 @@
      -71,
      -334.5
     ]
-   ]
+   ],
+   "nameZh": "挑戰滑道",
+   "number": 6
   },
   {
    "id": "osm-504451752",
-   "name": null,
+   "name": "アーチコース",
    "difficulty": "easy",
    "area": false,
    "points": [
@@ -1104,11 +1128,13 @@
      -71,
      -334.5
     ]
-   ]
+   ],
+   "nameZh": "拱門滑道",
+   "number": 20
   },
   {
    "id": "osm-504451754",
-   "name": null,
+   "name": "グランドバーン",
    "difficulty": "easy",
    "area": false,
    "points": [
@@ -1156,11 +1182,13 @@
      37,
      569.4
     ]
-   ]
+   ],
+   "nameZh": "大雪坡",
+   "number": 2
   },
   {
    "id": "osm-504451757",
-   "name": null,
+   "name": "メインバーン",
    "difficulty": "easy",
    "area": false,
    "points": [
@@ -1200,11 +1228,13 @@
      37,
      569.4
     ]
-   ]
+   ],
+   "nameZh": "主雪坡",
+   "number": 1
   },
   {
    "id": "osm-504451759",
-   "name": null,
+   "name": "ロマンスコース",
    "difficulty": "easy",
    "area": false,
    "points": [
@@ -1244,11 +1274,13 @@
      482.8,
      -567.4
     ]
-   ]
+   ],
+   "nameZh": "浪漫滑道",
+   "number": 18
   },
   {
    "id": "osm-504451762",
-   "name": null,
+   "name": "ワイドバーン",
    "difficulty": "easy",
    "area": false,
    "points": [
@@ -1304,11 +1336,13 @@
      265.8,
      680.6
     ]
-   ]
+   ],
+   "nameZh": "寬闊雪坡",
+   "number": 3
   },
   {
    "id": "osm-877916757",
-   "name": null,
+   "name": "グランドバーン",
    "difficulty": "easy",
    "area": false,
    "points": [
@@ -1320,7 +1354,9 @@
      -160.7,
      161.5
     ]
-   ]
+   ],
+   "nameZh": "大雪坡",
+   "number": 2
   }
  ],
  "lifts": [
@@ -1418,7 +1454,8 @@
      55.5,
      656.2
     ]
-   ]
+   ],
+   "nameZh": "第1雙人吊椅"
   },
   {
    "id": "osm-404916442",
@@ -1486,7 +1523,8 @@
      -143.3,
      -358.5
     ]
-   ]
+   ],
+   "nameZh": "中央四人吊椅"
   },
   {
    "id": "osm-404916443",
@@ -1538,7 +1576,8 @@
      -75.2,
      -38.7
     ]
-   ]
+   ],
+   "nameZh": "第2雙人吊椅"
   },
   {
    "id": "osm-404916444",
@@ -1594,7 +1633,8 @@
      -285.1,
      -572.9
     ]
-   ]
+   ],
+   "nameZh": "第3雙人吊椅"
   },
   {
    "id": "osm-404916446",
@@ -1666,7 +1706,8 @@
      -327.4,
      -1190.6
     ]
-   ]
+   ],
+   "nameZh": "山頂四人吊椅"
   },
   {
    "id": "osm-404916447",
@@ -1726,7 +1767,8 @@
      64.3,
      -1051
     ]
-   ]
+   ],
+   "nameZh": "第1浪漫吊椅"
   }
  ],
  "spawn": {

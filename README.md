@@ -22,7 +22,7 @@ npm run dev        # http://localhost:5173/
 
 - **路線引導**：依目前的目標指路，畫面上方顯示方向與距離，目的地有光柱，走路時地上有沿步道的箭頭，小地圖上有路線。
 - **雪道導覽**：每條雪道一種淡色色帶、往下坡方向的箭頭，以及雪道起點的名稱牌。
-- **地圖**：小地圖與全區地圖都標示雪道與纜車名稱。OSM 沒有岩原的雪道名稱，所以名稱是依起點附近的纜車自動命名（例如「山頂クワッド 上級コース」）。要用真實名稱，可以在 `tools/terrain/facilities/iwappara.json` 的 `runNames` 依 OSM id 填入，再執行 `node tools/terrain/build-resort.mjs`。
+- **地圖**：小地圖與全區地圖都標示雪道（官方編號、日文名與繁體中文）和纜車名稱。雪道名稱依岩原官方雪道圖，與 OSM 雪道逐條比對位置、走向和難度後寫在 `tools/terrain/facilities/iwappara.json` 的 `courses`（中文為意譯）；改完執行 `node tools/terrain/build-resort.mjs`。OSM 沒有收錄的雪道（④ スマイル、⑪ レーサーズ、⑭ ダイナミック）目前不在遊戲中。
 
 ## 一天的流程
 
