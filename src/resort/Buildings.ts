@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { mergeStatic } from '../world/merge';
 import type { Heightmap } from '../world/Heightmap';
 import type { Facility, InteractionPoint } from './ResortData';
 import type { LiftLine } from './Lifts';
@@ -128,35 +128,6 @@ function lodge(f: Facility, storeys: number, flatRoof: boolean) {
   return g;
 }
 
-/**
- * Collapse a static group into one mesh per material: a lodge goes from ~60 draw calls to ~7.
- * Returns a new group positioned like the original.
- */
-function mergeByMaterial(group: THREE.Group) {
-  group.updateMatrixWorld(true);
-  const inverse = group.matrixWorld.clone().invert();
-  const byMat = new Map<THREE.Material, THREE.BufferGeometry[]>();
-  group.traverse((o) => {
-    if (!(o instanceof THREE.Mesh)) return;
-    const geo = (o.geometry as THREE.BufferGeometry).index ? o.geometry.toNonIndexed() : o.geometry.clone();
-    for (const name of Object.keys(geo.attributes)) if (!['position', 'normal', 'uv'].includes(name)) geo.deleteAttribute(name);
-    geo.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inverse, o.matrixWorld));
-    const list = byMat.get(o.material as THREE.Material) ?? [];
-    list.push(geo);
-    byMat.set(o.material as THREE.Material, list);
-  });
-  const merged = new THREE.Group();
-  merged.position.copy(group.position);
-  merged.rotation.copy(group.rotation);
-  for (const [material, geos] of byMat) {
-    const mesh = new THREE.Mesh(mergeGeometries(geos)!, material);
-    mesh.castShadow = mesh.receiveShadow = true;
-    merged.add(mesh);
-    for (const g of geos) g.dispose();
-  }
-  return merged;
-}
-
 /** Signpost marking an interaction point (door / counter). */
 function marker() {
   const g = new THREE.Group();
@@ -188,7 +159,7 @@ export class Buildings {
       if (f.type === 'parking') continue;
       const rot = THREE.MathUtils.degToRad(f.rotation);
       const y = pads.get(f.id) ?? 0;
-      const building = mergeByMaterial(f.type === 'hotel' ? lodge(f, 4, true) : lodge(f, f.type === 'center_house' ? 2 : 1, false));
+      const building = mergeStatic(f.type === 'hotel' ? lodge(f, 4, true) : lodge(f, f.type === 'center_house' ? 2 : 1, false));
       building.position.set(f.x, y, f.z);
       building.rotation.y = rot;
       this.group.add(building);

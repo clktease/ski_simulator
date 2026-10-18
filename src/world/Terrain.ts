@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { Heightmap } from './Heightmap';
 import { MASK_PAVED, MASK_PISTE, type PisteMask } from '../resort/PisteMask';
+import { TerrainLod } from './TerrainLod';
 
 /** Cheap deterministic hash noise in [0, 1). */
 export function hash2(x: number, z: number) {
@@ -32,10 +33,7 @@ function gridGeometry(hm: Heightmap) {
   return geo;
 }
 
-/**
- * Single full-resolution terrain mesh with baked vertex colours.
- * TODO(perf): split into chunks with LOD once the play area grows.
- */
+/** Full-resolution terrain with baked vertex colours, split into LOD chunks. */
 export function buildTerrain(hm: Heightmap, mask: PisteMask) {
   const geo = gridGeometry(hm);
   const pos = geo.attributes.position as THREE.BufferAttribute;
@@ -54,9 +52,9 @@ export function buildTerrain(hm: Heightmap, mask: PisteMask) {
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
   const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.82, metalness: 0 });
-  const mesh = new THREE.Mesh(geo, mat);
-  mesh.receiveShadow = true;
-  return mesh;
+  const lod = new TerrainLod(geo, hm.meta.resolution, mat, { distances: [400, 900, 1700], skirt: 20 });
+  geo.dispose();
+  return lod;
 }
 
 /**
@@ -87,7 +85,12 @@ export function buildOuterTerrain(hm: Heightmap) {
     c.toArray(colors, k * 3);
   }
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-  const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 }));
-  mesh.receiveShadow = true;
-  return mesh;
+  const lod = new TerrainLod(geo, outer.meta.resolution, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 }), {
+    distances: [2500, 5000, 9000],
+    skirt: 30,
+    // chunks wholly under the detailed terrain are never seen
+    skip: (x, z) => Math.abs(x) < hm.half && Math.abs(z) < hm.half,
+  });
+  geo.dispose();
+  return lod;
 }

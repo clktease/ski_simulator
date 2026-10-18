@@ -104,26 +104,87 @@ export function buildForest(hm: Heightmap, mask: PisteMask, options: Partial<For
     }
   }
 
-  const group = new THREE.Group();
-  const cedarMesh = new THREE.InstancedMesh(
-    cedarGeometry(),
-    new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95, flatShading: true }),
-    cedars.length,
-  );
-  cedars.forEach((mm, i) => {
-    cedarMesh.setMatrixAt(i, mm);
-    cedarMesh.setColorAt(i, cedarColors[i]);
-  });
-  const bareMesh = new THREE.InstancedMesh(
-    bareTreeGeometry(),
-    new THREE.MeshStandardMaterial({ color: 0x5a5048, roughness: 1 }),
-    bare.length,
-  );
-  bare.forEach((mm, i) => bareMesh.setMatrixAt(i, mm));
-  for (const mesh of [cedarMesh, bareMesh]) {
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-    group.add(mesh);
+  const lod = new ForestLod(cedars, cedarColors, bare);
+  return { group: lod.group, update: (camera: THREE.Camera) => lod.update(camera), index };
+}
+
+/** Far-away stand-ins: a single open cone per tree, a few triangles instead of ~50. */
+function cedarFarGeometry() {
+  return new THREE.ConeGeometry(2.5, 11, 6, 1, true).translate(0, 7, 0);
+}
+function bareFarGeometry() {
+  return new THREE.ConeGeometry(0.9, 9, 3, 1, true).translate(0, 4.5, 0);
+}
+
+const CELL = 400; // m per forest cell
+const NEAR = 480; // full trees (and shadows) within this distance of a cell
+
+/**
+ * Forest split into square cells so each frustum-culls on its own; every cell has a full-detail
+ * and a far InstancedMesh sharing one instance buffer, swapped by camera distance.
+ */
+class ForestLod {
+  readonly group = new THREE.Group();
+  private readonly cells: { near: THREE.InstancedMesh[]; far: THREE.InstancedMesh[]; x: number; z: number; isNear: boolean }[] = [];
+
+  constructor(cedars: THREE.Matrix4[], cedarColors: THREE.Color[], bare: THREE.Matrix4[]) {
+    const cedarMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95, flatShading: true });
+    const bareMat = new THREE.MeshStandardMaterial({ color: 0x5a5048, roughness: 1 });
+    const kinds = [
+      { near: cedarGeometry(), far: cedarFarGeometry(), mat: cedarMat, list: cedars, colors: cedarColors as THREE.Color[] | null },
+      { near: bareTreeGeometry(), far: bareFarGeometry(), mat: bareMat, list: bare, colors: null },
+    ];
+    const byCell = new Map<string, { x: number; z: number; items: [number, THREE.Matrix4, THREE.Color | null][] }>();
+    const p = new THREE.Vector3();
+    kinds.forEach((k, kind) =>
+      k.list.forEach((m, i) => {
+        p.setFromMatrixPosition(m);
+        const cx = Math.floor(p.x / CELL), cz = Math.floor(p.z / CELL);
+        const key = `${cx},${cz}`;
+        let cell = byCell.get(key);
+        if (!cell) byCell.set(key, (cell = { x: (cx + 0.5) * CELL, z: (cz + 0.5) * CELL, items: [] }));
+        cell.items.push([kind, m, k.colors ? k.colors[i] : null]);
+      }),
+    );
+
+    for (const cell of byCell.values()) {
+      const entry = { near: [] as THREE.InstancedMesh[], far: [] as THREE.InstancedMesh[], x: cell.x, z: cell.z, isNear: true };
+      kinds.forEach((k, kind) => {
+        const items = cell.items.filter((it) => it[0] === kind);
+        if (!items.length) return;
+        const near = new THREE.InstancedMesh(k.near, k.mat, items.length);
+        items.forEach(([, m, c], i) => {
+          near.setMatrixAt(i, m);
+          if (c) near.setColorAt(i, c);
+        });
+        near.castShadow = near.receiveShadow = true;
+        const far = new THREE.InstancedMesh(k.far, k.mat, items.length);
+        far.instanceMatrix = near.instanceMatrix;
+        far.instanceColor = near.instanceColor;
+        far.receiveShadow = true;
+        far.visible = false;
+        for (const mesh of [near, far]) {
+          mesh.matrixAutoUpdate = false;
+          mesh.computeBoundingSphere();
+          this.group.add(mesh);
+        }
+        entry.near.push(near);
+        entry.far.push(far);
+      });
+      this.cells.push(entry);
+    }
   }
-  return { group, index };
+
+  update(camera: THREE.Camera) {
+    const cam = camera.position;
+    for (const c of this.cells) {
+      const d = Math.hypot(c.x - cam.x, c.z - cam.z);
+      // hysteresis so a cell on the boundary does not flicker between levels
+      const near = c.isNear ? d < NEAR + 60 : d < NEAR;
+      if (near === c.isNear) continue;
+      c.isNear = near;
+      for (const m of c.near) m.visible = near;
+      for (const m of c.far) m.visible = !near;
+    }
+  }
 }

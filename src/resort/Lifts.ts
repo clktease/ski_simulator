@@ -1,11 +1,14 @@
 import * as THREE from 'three';
 import type { Heightmap } from '../world/Heightmap';
 import type { Lift } from './ResortData';
+import { mergeStatic } from '../world/merge';
 
 const TOWER_HEIGHT = 11;
 const CABLE_GAP = 2.4; // half distance between uphill and downhill cable
 const CHAIR_SPACING = 14;
 const CHAIR_DROP = 2.6;
+const LUT_STEP = 0.5; // m between precomputed loop poses
+const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _p = new THREE.Vector3(), _up = new THREE.Vector3(0, 1, 0), _one = new THREE.Vector3(1, 1, 1);
 
 /** One chairlift: stations, pylons, cable loop and moving chairs. */
 export class LiftLine {
@@ -26,6 +29,8 @@ export class LiftLine {
   readonly boardingPoint: THREE.Vector3;
   running = true;
   private readonly chairs: THREE.InstancedMesh;
+  /** x, y, z, yaw every LUT_STEP metres along the loop: Curve.getPointAt per chair per frame is costly */
+  private readonly lut: Float32Array;
   private offset = 0;
 
   constructor(readonly data: Lift, hm: Heightmap) {
@@ -81,6 +86,13 @@ export class LiftLine {
     addSpans([...down].reverse());
     this.loop.add(new THREE.LineCurve3(down[0], up[0]));
     this.length = this.loop.getLength();
+    const samples = Math.ceil(this.length / LUT_STEP);
+    this.lut = new Float32Array((samples + 1) * 4);
+    for (let k = 0; k <= samples; k++) {
+      const u = Math.min(k / samples, 1);
+      const p = this.loop.getPointAt(u), t = this.loop.getTangentAt(u);
+      this.lut.set([p.x, p.y, p.z, Math.atan2(t.x, t.z)], k * 4);
+    }
 
     const cable = new THREE.Line(
       new THREE.BufferGeometry().setFromPoints(this.loop.getSpacedPoints(Math.ceil(this.length / 4))),
@@ -103,16 +115,19 @@ export class LiftLine {
     this.chairs = new THREE.InstancedMesh(chairGeo, chairMat, count);
     this.chairs.castShadow = true;
     this.group.add(this.chairs);
+    mergeStatic(this.group);
     this.update(0);
   }
 
   /** Pose of a point travelling `distance` metres along the loop. */
   poseAt(distance: number, target = new THREE.Matrix4()) {
-    const u = (((distance % this.length) + this.length) % this.length) / this.length;
-    const p = this.loop.getPointAt(u);
-    const t = this.loop.getTangentAt(u);
-    const yaw = Math.atan2(t.x, t.z);
-    return target.compose(p, new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw + Math.PI / 2), new THREE.Vector3(1, 1, 1));
+    const samples = this.lut.length / 4 - 1;
+    const f = ((((distance % this.length) + this.length) % this.length) / this.length) * samples;
+    const k = Math.min(Math.floor(f), samples - 1), t = f - k;
+    const L = this.lut, a = k * 4, b = a + 4;
+    _p.set(L[a] + (L[b] - L[a]) * t, L[a + 1] + (L[b + 1] - L[a + 1]) * t, L[a + 2] + (L[b + 2] - L[a + 2]) * t);
+    const yaw = t < 0.5 ? L[a + 3] : L[b + 3];
+    return target.compose(_p, _q.setFromAxisAngle(_up, yaw + Math.PI / 2), _one);
   }
 
   get chairCount() {
@@ -149,7 +164,7 @@ export class LiftLine {
   update(dt: number) {
     if (!this.running) return;
     this.offset += this.speed * this.speedMultiplier * dt;
-    const m = new THREE.Matrix4();
+    const m = _m;
     for (let i = 0; i < this.chairs.count; i++) {
       this.chairs.setMatrixAt(i, this.poseAt(this.offset + i * CHAIR_SPACING, m));
     }

@@ -26,9 +26,10 @@ async function main() {
   const pads = Buildings.gradeSites(hm, resort.facilities);
   const sky = new SkyLight(scene, engine.renderer, quality.shadowMap);
   const mask = new PisteMask(hm, resort);
-  scene.add(buildTerrain(hm, mask));
+  const terrain = buildTerrain(hm, mask);
+  scene.add(terrain.group);
   const outer = buildOuterTerrain(hm);
-  if (outer) scene.add(outer);
+  if (outer) scene.add(outer.group);
   const forest = buildForest(hm, mask, { max: quality.maxTrees });
   scene.add(forest.group);
 
@@ -57,6 +58,9 @@ async function main() {
   engine.onUpdate((dt, elapsed) => {
     game.update(dt, elapsed);
     game.input.endFrame();
+    terrain.update(engine.camera);
+    outer?.update(engine.camera);
+    forest.update(engine.camera);
   });
 
   // Handle for automated tests / console tinkering
